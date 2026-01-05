@@ -6,4 +6,8 @@ export {
   getSymbolCache,
   getSymbolInfo,
   searchSymbols,
+  listSymbolPins,
+  showSymbolPins,
+  validateSymbolInheritance,
+  validateAllSymbolInheritance,
 } from "./cache";

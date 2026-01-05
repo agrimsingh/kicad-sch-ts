@@ -22,6 +22,7 @@ export interface LibraryStats {
 
 export class SymbolLibraryCache {
   private symbolCache: Map<string, SymbolDefinition> = new Map();
+  private resolvedSymbolCache: Map<string, SymbolDefinition> = new Map();
   private libraryIndex: Map<string, string[]> = new Map();
   private libraryPaths: string[] = [];
   private libStats: Map<string, LibraryStats> = new Map();
@@ -126,8 +127,15 @@ export class SymbolLibraryCache {
    * Get a symbol by lib_id (e.g., "Device:R").
    */
   getSymbol(libId: string): SymbolDefinition | undefined {
+    if (this.resolvedSymbolCache.has(libId)) {
+      return this.resolvedSymbolCache.get(libId);
+    }
     if (this.symbolCache.has(libId)) {
-      return this.symbolCache.get(libId);
+      const resolved = this.resolveSymbolInheritance(libId);
+      if (resolved) {
+        this.resolvedSymbolCache.set(libId, resolved);
+      }
+      return resolved;
     }
 
     const [libraryName, symbolName] = libId.split(":");
@@ -139,7 +147,11 @@ export class SymbolLibraryCache {
       this.loadLibrary(libraryName);
     }
 
-    return this.symbolCache.get(libId);
+    const resolved = this.resolveSymbolInheritance(libId);
+    if (resolved) {
+      this.resolvedSymbolCache.set(libId, resolved);
+    }
+    return resolved;
   }
 
   /**
@@ -166,6 +178,7 @@ export class SymbolLibraryCache {
           }
 
           this.libraryIndex.set(libraryName, symbolNames);
+          this.resolvedSymbolCache.clear();
           this.libStats.set(libraryName, {
             symbolCount: symbols.length,
             loadTime: Date.now() - startTime,
@@ -251,13 +264,18 @@ export class SymbolLibraryCache {
         case "property":
           this.parseSymbolProperty(item, symbol);
           break;
+        case "extends":
+          symbol.extends = item[1] as string;
+          break;
         case "power":
           symbol.isPower = true;
           break;
         case "pin_names":
+          symbol.pinNamesDefined = true;
           this.parsePinNames(item, symbol);
           break;
         case "pin_numbers":
+          symbol.pinNumbersDefined = true;
           if (
             item.some((x: unknown) => x instanceof SSymbol && x.name === "hide")
           ) {
@@ -418,6 +436,190 @@ export class SymbolLibraryCache {
     return pin;
   }
 
+  listPins(libId: string, unit?: number): SymbolPin[] {
+    const symbol = this.getSymbol(libId);
+    if (!symbol) return [];
+
+    if (unit !== undefined) {
+      return symbol.units.get(unit)?.pins || [];
+    }
+
+    const pins: SymbolPin[] = [];
+    for (const symbolUnit of symbol.units.values()) {
+      pins.push(...symbolUnit.pins);
+    }
+    return pins;
+  }
+
+  showPins(libId: string, unit?: number): string[] {
+    return this.listPins(libId, unit).map(
+      (pin) => `${pin.number}:${pin.name}`
+    );
+  }
+
+  validateInheritanceChain(libId: string): string[] {
+    const errors: string[] = [];
+    try {
+      this.resolveSymbolInheritance(libId);
+    } catch (e) {
+      errors.push((e as Error).message);
+    }
+    return errors;
+  }
+
+  validateAllInheritanceChains(): Map<string, string[]> {
+    const results = new Map<string, string[]>();
+    for (const libId of this.symbolCache.keys()) {
+      const errors = this.validateInheritanceChain(libId);
+      if (errors.length > 0) {
+        results.set(libId, errors);
+      }
+    }
+    return results;
+  }
+
+  private resolveSymbolInheritance(
+    libId: string,
+    stack: string[] = []
+  ): SymbolDefinition | undefined {
+    if (this.resolvedSymbolCache.has(libId)) {
+      return this.resolvedSymbolCache.get(libId);
+    }
+
+    const symbol = this.symbolCache.get(libId);
+    if (!symbol) return undefined;
+
+    if (!symbol.extends) {
+      this.resolvedSymbolCache.set(libId, symbol);
+      return symbol;
+    }
+
+    if (stack.includes(libId)) {
+      throw new LibraryError(
+        `Circular symbol inheritance: ${[...stack, libId].join(" -> ")}`
+      );
+    }
+
+    const baseName = symbol.extends;
+    const baseLibId = baseName.includes(":")
+      ? baseName
+      : `${symbol.library}:${baseName}`;
+    const baseSymbol = this.resolveSymbolInheritance(baseLibId, [
+      ...stack,
+      libId,
+    ]);
+
+    if (!baseSymbol) {
+      throw new LibraryError(`Base symbol not found: ${baseLibId}`);
+    }
+
+    const merged = this.mergeSymbols(baseSymbol, symbol);
+    this.resolvedSymbolCache.set(libId, merged);
+    return merged;
+  }
+
+  private mergeSymbols(
+    base: SymbolDefinition,
+    derived: SymbolDefinition
+  ): SymbolDefinition {
+    const merged: SymbolDefinition = {
+      ...base,
+      ...derived,
+      properties: new Map(base.properties),
+      units: new Map(),
+    };
+
+    const derivedOverrides = {
+      reference: derived.properties.has("Reference"),
+      description: derived.properties.has("ki_description"),
+      keywords: derived.properties.has("ki_keywords"),
+      datasheet: derived.properties.has("Datasheet"),
+    };
+
+    if (!derivedOverrides.reference) {
+      merged.referencePrefix = base.referencePrefix;
+    }
+    if (!derivedOverrides.description) {
+      merged.description = base.description;
+    }
+    if (!derivedOverrides.keywords) {
+      merged.keywords = base.keywords;
+    }
+    if (!derivedOverrides.datasheet) {
+      merged.datasheet = base.datasheet;
+    }
+
+    if (!derived.pinNamesDefined) {
+      merged.pinNames = { ...base.pinNames };
+    }
+    if (!derived.pinNumbersDefined) {
+      merged.pinNumbers = { ...base.pinNumbers };
+    }
+
+    if (!derived.isPower) {
+      merged.isPower = base.isPower;
+    }
+
+    if (derived.units.size === 0) {
+      for (const [unitNumber, unit] of base.units) {
+        merged.units.set(unitNumber, this.cloneSymbolUnit(unit));
+      }
+      merged.unitCount = base.unitCount;
+    } else {
+      for (const [unitNumber, unit] of base.units) {
+        merged.units.set(unitNumber, this.cloneSymbolUnit(unit));
+      }
+      for (const [unitNumber, unit] of derived.units) {
+        merged.units.set(unitNumber, this.cloneSymbolUnit(unit));
+      }
+      merged.unitCount = Math.max(base.unitCount, derived.unitCount);
+    }
+
+    for (const [name, prop] of derived.properties) {
+      merged.properties.set(name, prop);
+    }
+
+    return merged;
+  }
+
+  private cloneSymbolUnit(unit: SymbolUnit): SymbolUnit {
+    return {
+      unitNumber: unit.unitNumber,
+      style: unit.style,
+      graphics: unit.graphics.map((graphic) => ({ ...graphic })),
+      pins: unit.pins.map((pin) => this.cloneSymbolPin(pin)),
+    };
+  }
+
+  private cloneSymbolPin(pin: SymbolPin): SymbolPin {
+    return {
+      ...pin,
+      nameEffects: pin.nameEffects
+        ? {
+            ...pin.nameEffects,
+            font: pin.nameEffects.font
+              ? { ...pin.nameEffects.font }
+              : undefined,
+            justify: pin.nameEffects.justify
+              ? { ...pin.nameEffects.justify }
+              : undefined,
+          }
+        : undefined,
+      numberEffects: pin.numberEffects
+        ? {
+            ...pin.numberEffects,
+            font: pin.numberEffects.font
+              ? { ...pin.numberEffects.font }
+              : undefined,
+            justify: pin.numberEffects.justify
+              ? { ...pin.numberEffects.justify }
+              : undefined,
+          }
+        : undefined,
+      alternate: pin.alternate.map((alt) => ({ ...alt })),
+    };
+  }
+
   /**
    * Search for symbols by name or keywords.
    */
@@ -457,7 +659,7 @@ export class SymbolLibraryCache {
 
     const symbolNames = this.libraryIndex.get(libraryName) || [];
     return symbolNames
-      .map((name) => this.symbolCache.get(`${libraryName}:${name}`))
+      .map((name) => this.getSymbol(`${libraryName}:${name}`))
       .filter(Boolean) as SymbolDefinition[];
   }
 
@@ -478,6 +680,7 @@ export class SymbolLibraryCache {
    */
   clearCache(): void {
     this.symbolCache.clear();
+    this.resolvedSymbolCache.clear();
     this.libraryIndex.clear();
     this.libStats.clear();
   }
@@ -502,4 +705,26 @@ export function searchSymbols(
   limit?: number
 ): SymbolDefinition[] {
   return getSymbolCache().searchSymbols(query, limit);
+}
+
+export function listSymbolPins(
+  libId: string,
+  unit?: number
+): SymbolPin[] {
+  return getSymbolCache().listPins(libId, unit);
+}
+
+export function showSymbolPins(
+  libId: string,
+  unit?: number
+): string[] {
+  return getSymbolCache().showPins(libId, unit);
+}
+
+export function validateSymbolInheritance(libId: string): string[] {
+  return getSymbolCache().validateInheritanceChain(libId);
+}
+
+export function validateAllSymbolInheritance(): Map<string, string[]> {
+  return getSymbolCache().validateAllInheritanceChains();
 }

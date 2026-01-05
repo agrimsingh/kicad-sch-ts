@@ -338,6 +338,7 @@ export interface SymbolDefinition {
   libId: string;
   name: string;
   library: string;
+  extends?: string;
   referencePrefix: string;
   description: string;
   keywords: string;
@@ -346,7 +347,9 @@ export interface SymbolDefinition {
   unitsLocked: boolean;
   isPower: boolean;
   pinNames: { offset: number; hide: boolean };
+  pinNamesDefined?: boolean;
   pinNumbers: { hide: boolean };
+  pinNumbersDefined?: boolean;
   inBom: boolean;
   onBoard: boolean;
   properties: Map<string, PropertyValue>;

@@ -696,3 +696,13 @@ Completed Part 2 hierarchical connectivity.
 
 Tests:
 - npx jest test/integration/hierarchical-connectivity.test.ts
+
+### 2026-01-06 01:35:00
+Completed Part 3 symbol library and pin semantics.
+- Added symbol inheritance parsing/resolution with validation utilities and cycle detection.
+- Added pin enumeration helpers (list/show pins) and exported helpers.
+- Merged inherited units correctly to keep unit counts aligned.
+- Added symbol inheritance integration tests.
+
+Tests:
+- npx jest test/integration/library-inheritance.test.ts

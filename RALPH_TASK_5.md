@@ -85,11 +85,11 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 3. Symbol Library and Pin Semantics
 
-- [ ] Add symbol inheritance resolution (`extends` support).
-- [ ] Add symbol validation utilities (inheritance chain checks).
-- [ ] Expose pin enumeration helpers (`listPins`, `showPins` or TS equivalent).
-- [ ] Align symbol cache behavior with Python (unit count, power symbols, etc.).
-- [ ] Add tests for symbol inheritance and pin enumeration.
+- [x] Add symbol inheritance resolution (`extends` support).
+- [x] Add symbol validation utilities (inheritance chain checks).
+- [x] Expose pin enumeration helpers (`listPins`, `showPins` or TS equivalent).
+- [x] Align symbol cache behavior with Python (unit count, power symbols, etc.).
+- [x] Add tests for symbol inheritance and pin enumeration.
   - Target: `test/unit/symbols/*.test.ts`.
 
 **Targets**
