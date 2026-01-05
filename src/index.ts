@@ -30,3 +30,6 @@ export * from "./bom";
 export * from "./discovery";
 export * from "./exporters";
 export * from "./core/managers";
+
+// Note: Adapters (CLI, MCP) are not exported from the main entry point.
+// Import them directly from "kicad-sch-ts/dist/adapters" if needed.
