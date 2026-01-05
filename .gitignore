@@ -2,3 +2,5 @@ dist
 node_modules
 # Ralph config (may contain API key)
 .cursor/ralph-config.json
+# Ralph task files
+RALPH_TASK*.md
