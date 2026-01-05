@@ -256,6 +256,14 @@ const nets = analyzer.analyzeNets();
 console.log(nets.map((net) => net.name));
 ```
 
+## Testing
+
+```bash
+npm test
+```
+
+`npm test` runs a `pretest` step that rebuilds `better-sqlite3`. If it fails, install native build tools (e.g. `xcode-select --install` on macOS) and retry.
+
 ## Compatibility
 
 - **Node.js**: 18.0.0 or later
