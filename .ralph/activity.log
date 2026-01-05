@@ -574,3 +574,5 @@ Ralph Session Started: Mon Jan  5 20:07:27 +08 2026
 [20:09:56] 🟢 TOKENS: 33063 / 80000 (41%)
 [20:10:06] 🟢 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/package.json (49 lines, ~3.8KB)
 [20:10:06] 🟢 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/README.md (221 lines, ~17.2KB)
+[20:11:00] 🟢 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npm publish --dry-run 2>&1 → exit 0
+[20:11:00] 🟢 TOKENS: 38482 / 80000 (48%)
