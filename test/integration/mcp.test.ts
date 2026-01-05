@@ -68,7 +68,7 @@ describe("MCP Tools", () => {
     it("should load a schematic", async () => {
       const schematicPath = join(
         __dirname,
-        "../../tests/reference_kicad_projects/rotated_resistor/rotated_resistor_0deg.kicad_sch"
+        "../fixtures/rotated_resistor_0deg/rotated_resistor_0deg.kicad_sch"
       );
       
       const result = await handleManageSchematic({
