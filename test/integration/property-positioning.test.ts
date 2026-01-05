@@ -87,6 +87,51 @@ describe("Property positioning", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("derives offsets from symbol geometry when property positions are missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kicad-prop-geom-"));
+    const libPath = join(dir, "Geom.kicad_sym");
+
+    const content = `
+(kicad_symbol_lib
+  (version 20211014)
+  (generator "test")
+  (symbol "Simple"
+    (symbol "Simple_1_1"
+      (pin input line (at -5 0 180) (length 2.54) (name "~") (number "1"))
+      (pin input line (at 5 0 0) (length 2.54) (name "~") (number "2"))
+    )
+  )
+)
+`;
+
+    writeFileSync(libPath, content, "utf-8");
+
+    const cache = new SymbolLibraryCache();
+    cache.addLibraryPath(dir);
+
+    const ref = getPropertyPosition(
+      "Geom:Simple",
+      "Reference",
+      { x: 0, y: 0 },
+      0,
+      cache
+    );
+    const value = getPropertyPosition(
+      "Geom:Simple",
+      "Value",
+      { x: 0, y: 0 },
+      0,
+      cache
+    );
+
+    expect(ref.position.x).toBeCloseTo(0, 3);
+    expect(ref.position.y).toBeCloseTo(-4.699, 3);
+    expect(value.position.x).toBeCloseTo(0, 3);
+    expect(value.position.y).toBeCloseTo(4.699, 3);
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("matches reference schematics for common symbols", () => {
     const cache = new SymbolLibraryCache();
     cache.setLibraryPaths([]);

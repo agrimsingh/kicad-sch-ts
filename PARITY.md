@@ -43,8 +43,8 @@ Decisions are categorized as:
 ### Known Issues (Python)
 
 1. **Multi-unit symbol detection (`add_all_units=True`)**
-   - **Decision**: Defer.
-   - **TS status**: TS supports explicit `unit` placement, but does not include an `add_all_units` helper yet.
+   - **Decision**: Improve.
+   - **TS status**: TS provides `components.addAllUnits(...)` to place all units using library metadata.
 
 2. **Grid snapping test tolerance**
    - **Decision**: Match.
@@ -61,8 +61,8 @@ Decisions are categorized as:
    - **TS status**: Connectivity transforms pin positions with rotation/mirroring in `src/connectivity/analyzer.ts`.
 
 3. **Simplified wire connectivity analysis**
-   - **Decision**: Match.
-   - **TS status**: Connectivity uses endpoint/junction unioning without advanced intersection detection.
+   - **Decision**: Improve.
+   - **TS status**: Connectivity detects T-junctions, overlaps, and junction-crossing intersections while keeping non-junction crossings disconnected.
 
 ### Round-Trip Fidelity Issues (Python)
 
@@ -71,11 +71,9 @@ Decisions are categorized as:
    - **TS status**: Pin UUIDs are parsed and preserved; loaded schematics retain the original S-expression.
 
 2. **Component text positioning (user concern)**
-   - **Decision**: Defer.
-   - **TS status**: Existing schematics preserve positions; newly created symbols use default property offsets and may not match complex library placement.
+   - **Decision**: Improve.
+   - **TS status**: New symbols derive property offsets from library positions or symbol geometry when explicit property offsets are missing.
 
 ## Open Parity Gaps
 
-- `add_all_units` convenience helper for multi-unit symbols is not implemented.
-- Advanced wire intersection detection is not implemented.
-- Logging/telemetry utilities from Python are not ported (not required for core functionality).
+- None currently tracked in this parity list.

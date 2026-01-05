@@ -1,0 +1,47 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	(paper "A4")
+	(title_block
+		(title "Wire Overlap")
+	)
+	(lib_symbols)
+	(wire
+		(pts
+			(xy 90 100) (xy 110 100)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	)
+	(wire
+		(pts
+			(xy 100 100) (xy 120 100)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cccccccc-cccc-cccc-cccc-cccccccccccc")
+	)
+	(label "NET_O"
+		(at 90 100 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "dddddddd-dddd-dddd-dddd-dddddddddddd")
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

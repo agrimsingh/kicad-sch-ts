@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Logger utilities with configurable levels and error formatting.
+- Connectivity fixtures covering crossings, T-junctions, and overlaps.
+
+### Changed
+- Connectivity analysis now unions T-junctions, overlaps, and junction-crossing wires.
+- Property positioning derives offsets from symbol geometry when library offsets are missing.
+
 ### Parity Regressions
 - None.
 

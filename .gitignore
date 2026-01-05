@@ -6,3 +6,4 @@ node_modules
 RALPH_TASK*.md
 # Local kicad-sch-api checkout
 tmp_kicad-sch-api/
+AGENTS.md

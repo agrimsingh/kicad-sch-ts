@@ -4,6 +4,7 @@ import { Schematic } from "../core/schematic";
 import { Component } from "../core/collections/component";
 import { writeFileSync, readdirSync } from "fs";
 import { join } from "path";
+import { createLogger, formatError } from "../core/logger";
 
 export interface ComponentIssue {
   schematic: string;
@@ -25,6 +26,8 @@ export interface BOMEntry {
 }
 
 export class BOMPropertyAuditor {
+  private logger = createLogger({ name: "bom-auditor" });
+
   auditSchematic(
     schematicPath: string,
     requiredProperties: string[],
@@ -66,7 +69,10 @@ export class BOMPropertyAuditor {
         }
       }
     } catch (e) {
-      console.error(`Error loading ${schematicPath}:`, e);
+      this.logger.error("Error loading schematic", {
+        path: schematicPath,
+        error: formatError(e),
+      });
     }
 
     return issues;
@@ -146,7 +152,10 @@ export class BOMPropertyAuditor {
       const sch = Schematic.load(schematicPath);
       return this.generateBOMFromSchematic(sch, excludeDnp);
     } catch (e) {
-      console.error(`Error loading ${schematicPath}:`, e);
+      this.logger.error("Error loading schematic", {
+        path: schematicPath,
+        error: formatError(e),
+      });
       return [];
     }
   }

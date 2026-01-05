@@ -1,6 +1,8 @@
 // src/core/property-positioning.ts
 
 import { SymbolLibraryCache, getSymbolCache } from "../library/cache";
+import { SymbolBoundingBoxCalculator } from "../geometry/symbol-bbox";
+import { DEFAULT_TEXT_HEIGHT } from "../geometry/font-metrics";
 import { Point } from "./types";
 
 export interface PropertyOffset {
@@ -77,6 +79,9 @@ export function getPropertyPosition(
 ): { position: Point; rotation: number } {
   const offset =
     getOffsetFromSymbolLibrary(libId, propertyName, symbolCache) ||
+    (propertyName !== "Footprint"
+      ? getOffsetFromSymbolGeometry(libId, propertyName, symbolCache)
+      : null) ||
     getOffsetFromRule(libId, propertyName);
 
   const { x, y, rotation } = applyRotationTransform(
@@ -108,6 +113,27 @@ function getOffsetFromSymbolLibrary(
     y: position[1],
     rotation: position[2] || 0,
   };
+}
+
+function getOffsetFromSymbolGeometry(
+  libId: string,
+  propertyName: "Reference" | "Value",
+  symbolCache?: SymbolLibraryCache
+): PropertyOffset | null {
+  const cache = symbolCache || getSymbolCache();
+  const symbol = cache.getSymbol(libId);
+  if (!symbol) return null;
+  if (symbol.propertyPositions?.has(propertyName)) return null;
+
+  const [minX, minY, maxX, maxY] =
+    SymbolBoundingBoxCalculator.calculateBoundingBox(symbol, false);
+  const centerX = (minX + maxX) / 2;
+
+  if (propertyName === "Reference") {
+    return { x: centerX, y: minY - DEFAULT_TEXT_HEIGHT, rotation: 0 };
+  }
+
+  return { x: centerX, y: maxY + DEFAULT_TEXT_HEIGHT, rotation: 0 };
 }
 
 function getOffsetFromRule(

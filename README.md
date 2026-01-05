@@ -265,9 +265,11 @@ console.log(nets.map((net) => net.name));
 
 Parity status and limitation decisions are tracked in `PARITY.md`, including a module-by-module matrix and rationale for match/improve/defer calls.
 
+Recent parity improvements include multi-unit helpers, intersection-aware connectivity, symbol-geometry property positioning, and lightweight logging utilities.
+
 ## Known Limitations
 
-- **Component serialization**: When creating new schematics programmatically, added components are tracked in memory but not yet serialized to the output file. Loading and round-tripping existing files works perfectly.
+- See `PARITY.md` for any currently tracked limitations or deferred items.
 
 ## License
 

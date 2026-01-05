@@ -13,6 +13,7 @@ import {
   PropertyValue,
 } from "../core/types";
 import { LibraryError } from "../core/exceptions";
+import { createLogger, formatError } from "../core/logger";
 
 export interface LibraryStats {
   symbolCount: number;
@@ -27,6 +28,7 @@ export class SymbolLibraryCache {
   private libraryPaths: string[] = [];
   private libStats: Map<string, LibraryStats> = new Map();
   private parser: SExpressionParser = new SExpressionParser();
+  private logger = createLogger({ name: "library-cache" });
 
   constructor() {
     this.discoverLibraryPaths();
@@ -242,7 +244,10 @@ export class SymbolLibraryCache {
 
           return;
         } catch (e) {
-          console.error(`Error loading library ${libraryName}:`, e);
+          this.logger.error("Error loading library", {
+            library: libraryName,
+            error: formatError(e),
+          });
         }
       }
     }

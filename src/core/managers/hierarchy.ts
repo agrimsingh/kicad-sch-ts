@@ -13,6 +13,7 @@ import {
 } from "../types";
 import { HierarchyError } from "../exceptions";
 import { ConnectivityAnalyzer } from "../../connectivity/analyzer";
+import { createLogger, formatError } from "../logger";
 
 export interface HierarchyNode {
   path: string;
@@ -47,6 +48,7 @@ export class HierarchyManager {
   private _hierarchyTree: HierarchyNode | null = null;
   private _reuseCounts: Map<string, number> = new Map();
   private _analyzers: Map<string, ConnectivityAnalyzer> = new Map();
+  private logger = createLogger({ name: "hierarchy" });
 
   constructor(schematic: Schematic) {
     this.rootSchematic = schematic;
@@ -114,7 +116,10 @@ export class HierarchyManager {
           childNode.schematic = childSchematic;
           this._buildTreeRecursive(childNode);
         } catch (e) {
-          console.error(`Failed to load subsheet ${childPath}:`, e);
+          this.logger.error("Failed to load subsheet", {
+            path: childPath,
+            error: formatError(e),
+          });
         }
       }
       node.children.push(childNode);

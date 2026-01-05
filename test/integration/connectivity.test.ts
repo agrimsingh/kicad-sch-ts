@@ -122,5 +122,41 @@ describe("Connectivity Analysis", () => {
 
       expect(Array.isArray(nets)).toBe(true);
     });
+
+    it("connects crossing wires when a junction exists", () => {
+      const sch = Schematic.load(
+        "test/fixtures/connectivity/wire_crossing.kicad_sch"
+      );
+      const analyzer = new ConnectivityAnalyzer(sch);
+      const nets = analyzer.analyzeNets();
+
+      const net = nets.find((candidate) => candidate.name === "NET_X");
+      expect(net).toBeDefined();
+      expect(net?.wireCount).toBe(2);
+    });
+
+    it("connects T-junction wires without an explicit junction", () => {
+      const sch = Schematic.load(
+        "test/fixtures/connectivity/wire_t_junction.kicad_sch"
+      );
+      const analyzer = new ConnectivityAnalyzer(sch);
+      const nets = analyzer.analyzeNets();
+
+      const net = nets.find((candidate) => candidate.name === "NET_T");
+      expect(net).toBeDefined();
+      expect(net?.wireCount).toBe(2);
+    });
+
+    it("connects overlapping colinear wires", () => {
+      const sch = Schematic.load(
+        "test/fixtures/connectivity/wire_overlap.kicad_sch"
+      );
+      const analyzer = new ConnectivityAnalyzer(sch);
+      const nets = analyzer.analyzeNets();
+
+      const net = nets.find((candidate) => candidate.name === "NET_O");
+      expect(net).toBeDefined();
+      expect(net?.wireCount).toBe(2);
+    });
   });
 });

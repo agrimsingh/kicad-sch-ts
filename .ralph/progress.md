@@ -766,3 +766,14 @@ Completed Part 9 documentation updates.
 Completed Part 10 quality gates.
 - Added parity test suite script and CI workflow for parity checks.
 - Added CHANGELOG parity regression section.
+
+### 2026-01-06 05:30:00
+Completed RALPH_TASK_6 parity gap work.
+- Added intersection-aware connectivity (T-junctions, overlaps, junction crossings) and new fixtures/tests.
+- Added logging helpers and wired them into core modules.
+- Improved property positioning to use symbol geometry when library offsets are missing, with tests.
+- Updated PARITY.md, README.md, CHANGELOG.md, and marked checklist items complete.
+
+Tests:
+- npx jest test/integration/connectivity.test.ts
+- npx jest test/integration/property-positioning.test.ts test/unit/logger.test.ts

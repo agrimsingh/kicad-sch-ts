@@ -32,6 +32,7 @@ import {
   handleGetSymbolInfo,
 } from "./tools/get-symbol-info";
 import { discoverPinsTool, handleDiscoverPins } from "./tools/discover-pins";
+import { createLogger } from "../../core/logger";
 
 const tools = [
   manageSchematicTool,
@@ -65,6 +66,7 @@ export interface McpServerOptions {
 }
 
 export async function startMcpServer(options: McpServerOptions): Promise<void> {
+  const logger = createLogger({ name: "mcp-server", level: "info" });
   const server = new Server(
     {
       name: "kicad-sch-ts",
@@ -126,7 +128,7 @@ export async function startMcpServer(options: McpServerOptions): Promise<void> {
   if (options.transport === "stdio") {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("MCP server running on stdio");
+    logger.info("MCP server running on stdio");
   } else {
     throw new Error("HTTP transport not yet implemented");
   }
