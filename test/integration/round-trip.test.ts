@@ -5,70 +5,103 @@ import { Schematic } from "../../src";
 
 describe("Round-Trip Tests", () => {
   const fixturesDir = "test/fixtures";
+  const referenceDir = "tests/reference_kicad_projects";
 
-  it("should round-trip rotated_resistor_0deg", () => {
-    const filepath = `${fixturesDir}/rotated_resistor_0deg/rotated_resistor_0deg.kicad_sch`;
+  // Helper function for round-trip testing
+  function testRoundTrip(filepath: string) {
     const original = readFileSync(filepath, "utf-8");
     const sch = Schematic.fromString(original);
     const output = sch.format();
-    
-    // Compare line by line for better debugging
-    const originalLines = original.trim().split("\n");
-    const outputLines = output.trim().split("\n");
-    
-    expect(outputLines.length).toBe(originalLines.length);
-    
-    for (let i = 0; i < originalLines.length; i++) {
-      if (originalLines[i] !== outputLines[i]) {
-        console.log(`Line ${i + 1} differs:`);
-        console.log(`  Original: "${originalLines[i]}"`);
-        console.log(`  Output:   "${outputLines[i]}"`);
-      }
-      expect(outputLines[i]).toBe(originalLines[i]);
-    }
-  });
+    expect(output.trim()).toBe(original.trim());
+  }
 
+  // Test fixtures directory files
   const rotations = ["0deg", "90deg", "180deg", "270deg"];
   rotations.forEach((rot) => {
     it(`should round-trip rotated_resistor_${rot}`, () => {
-      const filepath = `${fixturesDir}/rotated_resistor_${rot}/rotated_resistor_${rot}.kicad_sch`;
-      const original = readFileSync(filepath, "utf-8");
-      const sch = Schematic.fromString(original);
-      const output = sch.format();
-      expect(output.trim()).toBe(original.trim());
+      testRoundTrip(`${fixturesDir}/rotated_resistor_${rot}/rotated_resistor_${rot}.kicad_sch`);
     });
   });
 
   it("should round-trip junction", () => {
-    const filepath = `${fixturesDir}/junction/junction.kicad_sch`;
-    const original = readFileSync(filepath, "utf-8");
-    const sch = Schematic.fromString(original);
-    const output = sch.format();
-    expect(output.trim()).toBe(original.trim());
+    testRoundTrip(`${fixturesDir}/junction/junction.kicad_sch`);
   });
 
   it("should round-trip no_connect", () => {
-    const filepath = `${fixturesDir}/no_connect/no_connect.kicad_sch`;
-    const original = readFileSync(filepath, "utf-8");
-    const sch = Schematic.fromString(original);
-    const output = sch.format();
-    expect(output.trim()).toBe(original.trim());
+    testRoundTrip(`${fixturesDir}/no_connect/no_connect.kicad_sch`);
   });
 
   it("should round-trip label_rotations", () => {
-    const filepath = `${fixturesDir}/label_rotations/label_rotations.kicad_sch`;
-    const original = readFileSync(filepath, "utf-8");
-    const sch = Schematic.fromString(original);
-    const output = sch.format();
-    expect(output.trim()).toBe(original.trim());
+    testRoundTrip(`${fixturesDir}/label_rotations/label_rotations.kicad_sch`);
   });
 
   it("should round-trip text_rotations", () => {
-    const filepath = `${fixturesDir}/text_rotations/text_rotations.kicad_sch`;
-    const original = readFileSync(filepath, "utf-8");
-    const sch = Schematic.fromString(original);
-    const output = sch.format();
-    expect(output.trim()).toBe(original.trim());
+    testRoundTrip(`${fixturesDir}/text_rotations/text_rotations.kicad_sch`);
+  });
+
+  // Reference project files
+  it("should round-trip hierarchical_label_rotations", () => {
+    testRoundTrip(`${referenceDir}/hierarchical_label_rotations/hierarchical_label_rotations.kicad_sch`);
+  });
+
+  it("should round-trip rectangles", () => {
+    testRoundTrip(`${referenceDir}/rectangles/rectangles.kicad_sch`);
+  });
+
+  it("should round-trip text_box_rotations", () => {
+    testRoundTrip(`${referenceDir}/text_box_rotations/text_box_rotations.kicad_sch`);
+  });
+
+  it("should round-trip text_effects", () => {
+    testRoundTrip(`${referenceDir}/text_effects/text_effects.kicad_sch`);
+  });
+
+  it("should round-trip multi_unit_tl072", () => {
+    testRoundTrip(`${referenceDir}/multi_unit_tl072/test.kicad_sch`);
+  });
+
+  it("should round-trip property_preservation", () => {
+    testRoundTrip(`${referenceDir}/property_preservation/test.kicad_sch`);
+  });
+
+  // Sheet pins (hierarchical schematics)
+  it("should round-trip sheet_pins", () => {
+    testRoundTrip(`${referenceDir}/sheet_pins/sheet_pins.kicad_sch`);
+  });
+
+  it("should round-trip sheet_pins subsheet", () => {
+    testRoundTrip(`${referenceDir}/sheet_pins/subsheet.kicad_sch`);
+  });
+
+  // Connectivity / hierarchical power
+  it("should round-trip ps2_hierarchical_power", () => {
+    testRoundTrip(`${referenceDir}/connectivity/ps2_hierarchical_power/ps2_hierarchical_power.kicad_sch`);
+  });
+
+  it("should round-trip ps2_hierarchical_power child_circuit", () => {
+    testRoundTrip(`${referenceDir}/connectivity/ps2_hierarchical_power/child_circuit.kicad_sch`);
+  });
+
+  // Property positioning for various component types
+  const componentTypes = [
+    "resistor",
+    "capacitor",
+    "capacitor_electrolytic",
+    "diode",
+    "led",
+    "inductor",
+    "transistor_bjt",
+    "op_amp",
+    "logic_ic",
+    "connector",
+  ];
+
+  componentTypes.forEach((type) => {
+    const folder = `property_positioning_${type}`;
+    const filename = type === "transistor_bjt" ? "transistor_bjt" : type;
+    it(`should round-trip ${folder}`, () => {
+      testRoundTrip(`${referenceDir}/${folder}/${filename}.kicad_sch`);
+    });
   });
 });
 
