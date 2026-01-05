@@ -211,6 +211,10 @@ The server provides tools for:
 - **Node.js**: 18.0.0 or later
 - **KiCAD**: 7.x, 8.x schematic format
 
+## Parity + Limitations
+
+Parity status and limitation decisions are tracked in `PARITY.md`, including a module-by-module matrix and rationale for match/improve/defer calls.
+
 ## Known Limitations
 
 - **Component serialization**: When creating new schematics programmatically, added components are tracked in memory but not yet serialized to the output file. Loading and round-tripping existing files works perfectly.
