@@ -34,20 +34,20 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 1. Round-Trip Fidelity (Highest Priority)
 
-- [ ] Implement serialization for in-memory changes (currently `format()` ignores edits).
+- [x] Implement serialization for in-memory changes (currently `format()` ignores edits).
   - Target: `src/core/schematic.ts` and related collections.
   - Decide: update `_sexp` incrementally vs rebuild from collections.
-- [ ] Preserve pin UUIDs on load/save.
+- [x] Preserve pin UUIDs on load/save.
   - Target: `src/core/schematic.ts` (symbol parsing/building).
-- [ ] Preserve property effects and label effects (including justification).
+- [x] Preserve property effects and label effects (including justification).
   - Target: `src/core/schematic.ts`, `src/core/types.ts`, `src/core/collections/label.ts`.
-- [ ] Ensure `lib_symbols` is persisted or properly reconstructed for new schematics.
+- [x] Ensure `lib_symbols` is persisted or properly reconstructed for new schematics.
   - Target: `src/core/schematic.ts`, `src/library/cache.ts`.
-- [ ] Add round-trip golden tests for:
-  - [ ] pin UUID preservation
-  - [ ] property preservation
-  - [ ] text effects preservation
-  - [ ] label rotations/justification
+- [x] Add round-trip golden tests for:
+  - [x] pin UUID preservation
+  - [x] property preservation
+  - [x] text effects preservation
+  - [x] label rotations/justification
   - Suggested test areas: `test/integration/round-trip.test.ts` and `tests/reference_kicad_projects/*`.
 
 **Acceptance notes**

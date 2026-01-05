@@ -137,4 +137,8 @@ export abstract class BaseCollection<T extends { uuid: string }>
   resetModified(): void {
     this.modified = false;
   }
+
+  markModified(): void {
+    this.modified = true;
+  }
 }

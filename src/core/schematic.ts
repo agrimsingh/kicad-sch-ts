@@ -91,6 +91,7 @@ export class Schematic {
   
   // Track if this schematic was created fresh (vs loaded from file)
   private _isCreated: boolean = false;
+  private _isModified: boolean = false;
 
   private constructor() {
     this._sexp = [];
@@ -131,6 +132,7 @@ export class Schematic {
     const schematic = new Schematic();
     schematic._sexp = sexp;
     schematic.parseSchematic(sexp);
+    schematic.resetModifiedFlags();
     
     return schematic;
   }
@@ -238,6 +240,37 @@ export class Schematic {
           break;
       }
     }
+  }
+
+  private hasModifiedCollections(): boolean {
+    return (
+      this.components.isModified ||
+      this.wires.isModified ||
+      this.labels.isModified ||
+      this.junctions.isModified ||
+      this.noConnects.isModified ||
+      this.buses.isModified ||
+      this.busEntries.isModified ||
+      this.sheets.isModified ||
+      this.texts.isModified ||
+      this.textBoxes.isModified ||
+      this.rectangles.isModified
+    );
+  }
+
+  private resetModifiedFlags(): void {
+    this._isModified = false;
+    this.components.resetModified();
+    this.wires.resetModified();
+    this.labels.resetModified();
+    this.junctions.resetModified();
+    this.noConnects.resetModified();
+    this.buses.resetModified();
+    this.busEntries.resetModified();
+    this.sheets.resetModified();
+    this.texts.resetModified();
+    this.textBoxes.resetModified();
+    this.rectangles.resetModified();
   }
 
   private parseTitleBlock(sexp: SExp[]): void {
@@ -980,39 +1013,71 @@ export class Schematic {
       sexp.push(this.buildTitleBlock(this.titleBlock));
     }
     
-    // lib_symbols - include symbols for all components
-    sexp.push(this.buildLibSymbols());
-    
-    // Add all wires
-    for (const wire of this.wires) {
-      sexp.push(this.buildWire(wire));
+    const libSymbols = this._libSymbolsSexp || this.buildLibSymbols();
+    sexp.push(libSymbols);
+
+    for (const sheet of this.sheets) {
+      sexp.push(this.buildSheet(sheet));
     }
-    
-    // Add all junctions
-    for (const junction of this.junctions) {
-      sexp.push(this.buildJunction(junction));
-    }
-    
-    // Add all no_connects
-    for (const nc of this.noConnects) {
-      sexp.push(this.buildNoConnect(nc));
-    }
-    
-    // Add all labels
-    for (const label of this.labels) {
-      sexp.push(this.buildLabel(label));
-    }
-    
-    // Add all components (symbols)
+
     for (const comp of this.components) {
       sexp.push(this.buildSymbol(comp.toSymbol()));
     }
-    
-    // sheet_instances
-    sexp.push([
-      new Symbol("sheet_instances"),
-      [new Symbol("path"), "/", [new Symbol("page"), "1"]],
-    ]);
+
+    for (const wire of this.wires) {
+      sexp.push(this.buildWire(wire));
+    }
+
+    for (const bus of this.buses) {
+      sexp.push(this.buildBus(bus));
+    }
+
+    for (const entry of this.busEntries) {
+      sexp.push(this.buildBusEntry(entry));
+    }
+
+    for (const junction of this.junctions) {
+      sexp.push(this.buildJunction(junction));
+    }
+
+    for (const nc of this.noConnects) {
+      sexp.push(this.buildNoConnect(nc));
+    }
+
+    for (const label of this.labels) {
+      sexp.push(this.buildLabel(label));
+    }
+
+    for (const text of this.texts) {
+      sexp.push(this.buildText(text));
+    }
+
+    for (const textBox of this.textBoxes) {
+      sexp.push(this.buildTextBox(textBox));
+    }
+
+    for (const rect of this.rectangles) {
+      sexp.push(this.buildRectangle(rect));
+    }
+
+    if (this._sheetInstancesSexp) {
+      sexp.push(this._sheetInstancesSexp);
+    } else {
+      sexp.push([
+        new Symbol("sheet_instances"),
+        [new Symbol("path"), "/", [new Symbol("page"), "1"]],
+      ]);
+    }
+
+    if (this._symbolInstancesSexp) {
+      sexp.push(this._symbolInstancesSexp);
+    }
+
+    if (this.embeddedFonts) {
+      sexp.push([new Symbol("embedded_fonts"), new Symbol("yes")]);
+    } else {
+      sexp.push([new Symbol("embedded_fonts"), new Symbol("no")]);
+    }
     
     return sexp;
   }
@@ -1023,18 +1088,57 @@ export class Schematic {
     return [new Symbol("lib_symbols")];
   }
 
-  private buildWire(wire: { uuid: string; points: Point[] }): SExp[] {
+  private buildWire(wire: Wire): SExp[] {
     const pts: SExp[] = [new Symbol("pts")];
     for (const pt of wire.points) {
       pts.push([new Symbol("xy"), pt.x, pt.y]);
     }
     
-    return [
+    const sexp: SExp[] = [
       new Symbol("wire"),
       pts,
-      [new Symbol("stroke"), [new Symbol("width"), 0], [new Symbol("type"), new Symbol("default")]],
-      [new Symbol("uuid"), wire.uuid],
     ];
+
+    if (wire.stroke) {
+      sexp.push(this.buildStroke(wire.stroke));
+    }
+
+    sexp.push([new Symbol("uuid"), wire.uuid]);
+    return sexp;
+  }
+
+  private buildBus(bus: Bus): SExp[] {
+    const pts: SExp[] = [new Symbol("pts")];
+    for (const pt of bus.points) {
+      pts.push([new Symbol("xy"), pt.x, pt.y]);
+    }
+
+    const sexp: SExp[] = [
+      new Symbol("bus"),
+      pts,
+    ];
+
+    if (bus.stroke) {
+      sexp.push(this.buildStroke(bus.stroke));
+    }
+
+    sexp.push([new Symbol("uuid"), bus.uuid]);
+    return sexp;
+  }
+
+  private buildBusEntry(entry: BusEntry): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("bus_entry"),
+      [new Symbol("at"), entry.position.x, entry.position.y],
+      [new Symbol("size"), entry.size.width, entry.size.height],
+    ];
+
+    if (entry.stroke) {
+      sexp.push(this.buildStroke(entry.stroke));
+    }
+
+    sexp.push([new Symbol("uuid"), entry.uuid]);
+    return sexp;
   }
 
   private buildJunction(junction: Junction): SExp[] {
@@ -1056,9 +1160,31 @@ export class Schematic {
   }
 
   private buildLabel(label: Label | GlobalLabel | HierarchicalLabel): SExp[] {
-    const sexp: SExp[] = [new Symbol("label"), label.text];
+    const isGlobal = "properties" in label;
+    const isHierarchical = "shape" in label && !("properties" in label);
+    const tag = isGlobal
+      ? "global_label"
+      : isHierarchical
+        ? "hierarchical_label"
+        : "label";
+
+    const sexp: SExp[] = [new Symbol(tag), label.text];
+    if ("shape" in label) {
+      sexp.push([new Symbol("shape"), new Symbol(label.shape)]);
+    }
     sexp.push([new Symbol("at"), label.position.x, label.position.y, label.rotation]);
-    sexp.push([new Symbol("effects"), [new Symbol("font"), [new Symbol("size"), 1.27, 1.27]]]);
+    const effects = this.buildTextEffects(label.effects, true);
+    if (effects) {
+      sexp.push(effects);
+    }
+    if ("fieldsAutoplaced" in label && label.fieldsAutoplaced) {
+      sexp.push([new Symbol("fields_autoplaced")]);
+    }
+    if ("properties" in label) {
+      for (const [name, prop] of label.properties) {
+        sexp.push(this.buildProperty(name, prop, true));
+      }
+    }
     sexp.push([new Symbol("uuid"), label.uuid]);
     return sexp;
   }
@@ -1078,16 +1204,329 @@ export class Schematic {
     sexp.push([new Symbol("in_bom"), new Symbol(symbol.inBom ? "yes" : "no")]);
     sexp.push([new Symbol("on_board"), new Symbol(symbol.onBoard ? "yes" : "no")]);
     sexp.push([new Symbol("dnp"), new Symbol(symbol.dnp ? "yes" : "no")]);
+    if (symbol.fieldsAutoplaced) {
+      sexp.push([new Symbol("fields_autoplaced")]);
+    }
     sexp.push([new Symbol("uuid"), symbol.uuid]);
     
     // Add properties
     for (const [name, prop] of symbol.properties) {
-      const propSexp: SExp[] = [new Symbol("property"), name, prop.value];
-      propSexp.push([new Symbol("at"), prop.position.x, prop.position.y, prop.rotation]);
-      propSexp.push([new Symbol("effects"), [new Symbol("font"), [new Symbol("size"), 1.27, 1.27]]]);
-      sexp.push(propSexp);
+      sexp.push(this.buildProperty(name, prop, true));
+    }
+
+    for (const [pinNumber, pinUuid] of symbol.pins) {
+      if (!pinUuid) continue;
+      sexp.push([
+        new Symbol("pin"),
+        pinNumber,
+        [new Symbol("uuid"), pinUuid],
+      ]);
+    }
+
+    if (symbol.instances && symbol.instances.length > 0) {
+      sexp.push(this.buildSymbolInstances(symbol.instances));
     }
     
+    return sexp;
+  }
+
+  private buildSheet(sheet: Sheet): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("sheet"),
+      [new Symbol("at"), sheet.position.x, sheet.position.y],
+      [new Symbol("size"), sheet.size.width, sheet.size.height],
+    ];
+
+    if (sheet.fieldsAutoplaced) {
+      sexp.push([new Symbol("fields_autoplaced")]);
+    }
+
+    if (sheet.stroke) {
+      sexp.push(this.buildStroke(sheet.stroke));
+    }
+
+    if (sheet.fill) {
+      sexp.push(this.buildFillColor(sheet.fill));
+    }
+
+    sexp.push([new Symbol("uuid"), sheet.uuid]);
+
+    sexp.push(this.buildProperty("Sheetname", sheet.name, true));
+    sexp.push(this.buildProperty("Sheetfile", sheet.filename, true));
+
+    for (const pin of sheet.pins) {
+      sexp.push(this.buildSheetPin(pin));
+    }
+
+    if (sheet.instances && sheet.instances.length > 0) {
+      sexp.push(this.buildSheetInstances(sheet.instances));
+    }
+
+    return sexp;
+  }
+
+  private buildSheetPin(pin: SheetPin): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("pin"),
+      pin.name,
+      new Symbol(pin.shape),
+      [new Symbol("at"), pin.position.x, pin.position.y, pin.rotation],
+      [new Symbol("uuid"), pin.uuid],
+    ];
+
+    const effects = this.buildTextEffects(pin.effects, true);
+    if (effects) {
+      sexp.push(effects);
+    }
+
+    return sexp;
+  }
+
+  private buildText(text: Text): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("text"),
+      text.text,
+      [new Symbol("at"), text.position.x, text.position.y, text.rotation],
+    ];
+
+    const effects = this.buildTextEffects(text.effects, true);
+    if (effects) {
+      sexp.push(effects);
+    }
+
+    if (text.excludeFromSim !== undefined) {
+      sexp.push([
+        new Symbol("exclude_from_sim"),
+        new Symbol(text.excludeFromSim ? "yes" : "no"),
+      ]);
+    }
+
+    sexp.push([new Symbol("uuid"), text.uuid]);
+    return sexp;
+  }
+
+  private buildTextBox(textBox: TextBox): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("text_box"),
+      textBox.text,
+      [new Symbol("at"), textBox.position.x, textBox.position.y],
+      [new Symbol("size"), textBox.size.width, textBox.size.height],
+    ];
+
+    if (textBox.stroke) {
+      sexp.push(this.buildStroke(textBox.stroke));
+    }
+
+    if (textBox.fill) {
+      sexp.push(this.buildFill(textBox.fill));
+    }
+
+    const effects = this.buildTextEffects(textBox.effects, true);
+    if (effects) {
+      sexp.push(effects);
+    }
+
+    sexp.push([new Symbol("uuid"), textBox.uuid]);
+    return sexp;
+  }
+
+  private buildRectangle(rect: SchematicRectangle): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("rectangle"),
+      [new Symbol("start"), rect.start.x, rect.start.y],
+      [new Symbol("end"), rect.end.x, rect.end.y],
+    ];
+
+    if (rect.stroke) {
+      sexp.push(this.buildStroke(rect.stroke));
+    }
+
+    if (rect.fill) {
+      sexp.push(this.buildFill(rect.fill));
+    }
+
+    sexp.push([new Symbol("uuid"), rect.uuid]);
+    return sexp;
+  }
+
+  private buildProperty(
+    name: string,
+    prop: PropertyValue,
+    includeDefaultFont: boolean
+  ): SExp[] {
+    const propSexp: SExp[] = [new Symbol("property"), name, prop.value];
+    propSexp.push([new Symbol("at"), prop.position.x, prop.position.y, prop.rotation]);
+    const effects = this.buildTextEffects(prop.effects, includeDefaultFont);
+    if (effects) {
+      propSexp.push(effects);
+    }
+    if (prop.showName) {
+      propSexp.push([new Symbol("show_name")]);
+    }
+    return propSexp;
+  }
+
+  private buildTextEffects(
+    effects?: TextEffects,
+    includeDefaultFont: boolean = false
+  ): SExp[] | null {
+    const result: SExp[] = [new Symbol("effects")];
+    let hasChild = false;
+
+    if (effects?.font || includeDefaultFont) {
+      const fontSexp: SExp[] = [new Symbol("font")];
+      const size = effects?.font?.size || [1.27, 1.27];
+      fontSexp.push([new Symbol("size"), size[0], size[1]]);
+
+      if (effects?.font?.face) {
+        fontSexp.push([new Symbol("face"), effects.font.face]);
+      }
+      if (effects?.font?.thickness !== undefined) {
+        fontSexp.push([new Symbol("thickness"), effects.font.thickness]);
+      }
+      if (effects?.font?.bold !== undefined) {
+        fontSexp.push([new Symbol("bold"), new Symbol(effects.font.bold ? "yes" : "no")]);
+      }
+      if (effects?.font?.italic !== undefined) {
+        fontSexp.push([new Symbol("italic"), new Symbol(effects.font.italic ? "yes" : "no")]);
+      }
+      if (effects?.font?.color) {
+        fontSexp.push([
+          new Symbol("color"),
+          effects.font.color[0],
+          effects.font.color[1],
+          effects.font.color[2],
+          effects.font.color[3],
+        ]);
+      }
+
+      result.push(fontSexp);
+      hasChild = true;
+    }
+
+    if (effects?.justify) {
+      const justifySexp: SExp[] = [new Symbol("justify")];
+      if (effects.justify.horizontal === TextJustify.LEFT) {
+        justifySexp.push(new Symbol("left"));
+      } else if (effects.justify.horizontal === TextJustify.RIGHT) {
+        justifySexp.push(new Symbol("right"));
+      }
+      if (effects.justify.vertical === TextVerticalJustify.TOP) {
+        justifySexp.push(new Symbol("top"));
+      } else if (effects.justify.vertical === TextVerticalJustify.BOTTOM) {
+        justifySexp.push(new Symbol("bottom"));
+      }
+      if (effects.justify.mirror) {
+        justifySexp.push(new Symbol("mirror"));
+      }
+      if (justifySexp.length > 1) {
+        result.push(justifySexp);
+        hasChild = true;
+      }
+    }
+
+    if (effects?.hide !== undefined) {
+      result.push([new Symbol("hide"), new Symbol(effects.hide ? "yes" : "no")]);
+      hasChild = true;
+    }
+
+    return hasChild ? result : null;
+  }
+
+  private buildStroke(stroke: Stroke): SExp[] {
+    const sexp: SExp[] = [new Symbol("stroke")];
+    sexp.push([new Symbol("width"), stroke.width]);
+    sexp.push([new Symbol("type"), new Symbol(stroke.type)]);
+    if (stroke.color) {
+      sexp.push([
+        new Symbol("color"),
+        stroke.color[0],
+        stroke.color[1],
+        stroke.color[2],
+        stroke.color[3],
+      ]);
+    }
+    return sexp;
+  }
+
+  private buildFill(fill: { type: FillType; color?: [number, number, number, number] }): SExp[] {
+    const sexp: SExp[] = [new Symbol("fill")];
+    sexp.push([new Symbol("type"), new Symbol(fill.type)]);
+    if (fill.color) {
+      sexp.push([
+        new Symbol("color"),
+        fill.color[0],
+        fill.color[1],
+        fill.color[2],
+        fill.color[3],
+      ]);
+    }
+    return sexp;
+  }
+
+  private buildFillColor(fill: { color: [number, number, number, number] }): SExp[] {
+    return [
+      new Symbol("fill"),
+      [
+        new Symbol("color"),
+        fill.color[0],
+        fill.color[1],
+        fill.color[2],
+        fill.color[3],
+      ],
+    ];
+  }
+
+  private buildSymbolInstances(instances: SymbolInstance[]): SExp[] {
+    const sexp: SExp[] = [new Symbol("instances")];
+    const byProject = new Map<string, SymbolInstance[]>();
+
+    for (const instance of instances) {
+      if (!byProject.has(instance.project)) {
+        byProject.set(instance.project, []);
+      }
+      byProject.get(instance.project)!.push(instance);
+    }
+
+    for (const [project, projectInstances] of byProject) {
+      const projectSexp: SExp[] = [new Symbol("project"), project];
+      for (const instance of projectInstances) {
+        projectSexp.push([
+          new Symbol("path"),
+          instance.path,
+          [new Symbol("reference"), instance.reference],
+          [new Symbol("unit"), instance.unit],
+        ]);
+      }
+      sexp.push(projectSexp);
+    }
+
+    return sexp;
+  }
+
+  private buildSheetInstances(instances: SheetInstance[]): SExp[] {
+    const sexp: SExp[] = [new Symbol("instances")];
+    const byProject = new Map<string, SheetInstance[]>();
+
+    for (const instance of instances) {
+      if (!byProject.has(instance.project)) {
+        byProject.set(instance.project, []);
+      }
+      byProject.get(instance.project)!.push(instance);
+    }
+
+    for (const [project, projectInstances] of byProject) {
+      const projectSexp: SExp[] = [new Symbol("project"), project];
+      for (const instance of projectInstances) {
+        projectSexp.push([
+          new Symbol("path"),
+          instance.path,
+          [new Symbol("page"), instance.page],
+        ]);
+      }
+      sexp.push(projectSexp);
+    }
+
     return sexp;
   }
 
@@ -1120,9 +1559,11 @@ export class Schematic {
    */
   format(): string {
     const formatter = new ExactFormatter();
-    // Note: For newly created schematics, components added via collections
-    // are not currently serialized. This is a known limitation.
-    // Round-trip fidelity is preserved for loaded files.
+    if (this._isCreated || this._isModified || this.hasModifiedCollections()) {
+      this._sexp = this.buildFullSexp();
+      this._isCreated = false;
+      this.resetModifiedFlags();
+    }
     return formatter.format(this._sexp);
   }
 
@@ -1157,6 +1598,7 @@ export class Schematic {
       this.titleBlock = { comment: new Map() };
     }
     this.titleBlock.title = value;
+    this._isModified = true;
   }
 
   /**

@@ -48,6 +48,7 @@ export class Component {
       prop.value = value;
     }
     this.collection.updateReferenceIndex(this.symbol.uuid, value);
+    this.collection.markModified();
   }
 
   get value(): string {
@@ -59,6 +60,7 @@ export class Component {
     if (prop) {
       prop.value = val;
     }
+    this.collection.markModified();
   }
 
   get footprint(): string | undefined {
@@ -77,6 +79,7 @@ export class Component {
           rotation: 0,
         });
       }
+      this.collection.markModified();
     }
   }
 
@@ -103,6 +106,7 @@ export class Component {
         rotation: 0,
       });
     }
+    this.collection.markModified();
   }
 
   /** Get the raw symbol data for serialization */
