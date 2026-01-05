@@ -86,6 +86,9 @@ export class Schematic {
   private _sheetInstancesSexp: SExp[] | null = null;
   private _symbolInstancesSexp: SExp[] | null = null;
 
+  // File I/O helper
+  private _filePath: string | null = null;
+
   private constructor() {
     this._sexp = [];
     this.components = new ComponentCollection();
@@ -106,7 +109,9 @@ export class Schematic {
    */
   static load(filepath: string): Schematic {
     const content = readFileSync(filepath, "utf-8");
-    return Schematic.fromString(content);
+    const schematic = Schematic.fromString(content);
+    schematic._filePath = filepath;
+    return schematic;
   }
 
   /**
@@ -997,5 +1002,46 @@ export class Schematic {
   save(filepath: string): void {
     const content = this.format();
     writeFileSync(filepath, content + "\n", "utf-8");
+    this._filePath = filepath;
+  }
+
+  /**
+   * Get the title from the title block.
+   */
+  get title(): string {
+    return this.titleBlock?.title || "";
+  }
+
+  /**
+   * Set the title in the title block.
+   */
+  set title(value: string) {
+    if (!this.titleBlock) {
+      this.titleBlock = { comment: new Map() };
+    }
+    this.titleBlock.title = value;
+  }
+
+  /**
+   * File I/O accessor.
+   */
+  get fileIO(): { getFilePath(): string | null } {
+    return {
+      getFilePath: () => this._filePath,
+    };
+  }
+
+  /**
+   * Get global labels from the label collection.
+   */
+  get globalLabels(): GlobalLabel[] {
+    return this.labels.getGlobalLabels();
+  }
+
+  /**
+   * Get hierarchical labels from the label collection.
+   */
+  get hierarchicalLabels(): HierarchicalLabel[] {
+    return this.labels.getHierarchicalLabels();
   }
 }
