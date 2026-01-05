@@ -57,23 +57,31 @@ describe("Routing", () => {
   });
 
   it("should respect horizontal first corner direction", () => {
+    // Use exactly grid-aligned points (n * 1.27)
     const result = createOrthogonalRouting(
-      { x: 100, y: 100 },
-      { x: 150, y: 150 },
+      { x: 101.6, y: 101.6 }, // 80 * 1.27
+      { x: 152.4, y: 152.4 }, // 120 * 1.27
       CornerDirection.HORIZONTAL_FIRST
     );
 
-    expect(result.corner?.y).toBe(100);
+    // For HORIZONTAL_FIRST: corner is at (toPos.x, fromPos.y)
+    // Corner at (152.4, 101.6) which are both on grid
+    expect(result.corner?.x).toBeCloseTo(152.4, 1);
+    expect(result.corner?.y).toBeCloseTo(101.6, 1);
   });
 
   it("should respect vertical first corner direction", () => {
+    // Use exactly grid-aligned points
     const result = createOrthogonalRouting(
-      { x: 100, y: 100 },
-      { x: 150, y: 150 },
+      { x: 101.6, y: 101.6 },
+      { x: 152.4, y: 152.4 },
       CornerDirection.VERTICAL_FIRST
     );
 
-    expect(result.corner?.x).toBe(100);
+    // For VERTICAL_FIRST: corner is at (fromPos.x, toPos.y)
+    // Corner at (101.6, 152.4) which are both on grid
+    expect(result.corner?.x).toBeCloseTo(101.6, 1);
+    expect(result.corner?.y).toBeCloseTo(152.4, 1);
   });
 
   it("should validate valid routing result", () => {
@@ -92,8 +100,12 @@ describe("Routing", () => {
   });
 
   it("should check if point is on grid", () => {
-    expect(isOnGrid({ x: 100.33, y: 100.33 })).toBe(false); // Off by small amount
+    // Points that are exactly multiples of 1.27 are on grid
     expect(isOnGrid({ x: 127, y: 127 })).toBe(true); // 100 * 1.27
+    expect(isOnGrid({ x: 101.6, y: 101.6 })).toBe(true); // 80 * 1.27
+    // Points that are NOT multiples of 1.27 are off grid
+    expect(isOnGrid({ x: 100, y: 100 })).toBe(false); // 100/1.27 = 78.74
+    expect(isOnGrid({ x: 50, y: 50 })).toBe(false); // 50/1.27 = 39.37
   });
 
   it("should calculate distance between points", () => {
