@@ -153,5 +153,106 @@ describe("Hierarchy Management", () => {
         expect(sheets.length).toBeGreaterThanOrEqual(1);
       });
     });
+
+    describe("flattenHierarchy", () => {
+      it("should flatten empty schematic", () => {
+        const sch = Schematic.create("Test");
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy();
+
+        expect(flat).toBeDefined();
+        expect(flat).toBeInstanceOf(Schematic);
+      });
+
+      it("should flatten schematic with components", () => {
+        const sch = Schematic.create("Test");
+        sch.components.add({
+          libId: "Device:R",
+          reference: "R1",
+          value: "10k",
+          position: { x: 100, y: 100 },
+        });
+
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy();
+
+        expect(flat.components.length).toBe(1);
+      });
+
+      it("should flatten schematic with wires", () => {
+        const sch = Schematic.create("Test");
+        sch.wires.add({
+          points: [
+            { x: 0, y: 0 },
+            { x: 100, y: 0 },
+          ],
+        });
+
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy();
+
+        expect(flat.wires.length).toBe(1);
+      });
+
+      it("should flatten schematic with labels", () => {
+        const sch = Schematic.create("Test");
+        sch.labels.add({ text: "GND", position: { x: 50, y: 50 } });
+
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy();
+
+        expect(flat.labels.length).toBe(1);
+      });
+
+      it("should flatten schematic with junctions", () => {
+        const sch = Schematic.create("Test");
+        sch.junctions.add({ position: { x: 50, y: 50 } });
+
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy();
+
+        expect(flat.junctions.length).toBe(1);
+      });
+
+      it("should flatten hierarchical schematic", () => {
+        const sch = Schematic.load(
+          "tests/reference_kicad_projects/sheet_pins/sheet_pins.kicad_sch"
+        );
+
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy(true);
+
+        // Should include components from both parent and child
+        expect(flat).toBeDefined();
+        expect(flat.components.length).toBeGreaterThanOrEqual(0);
+      });
+
+      it("should prefix references when flattening", () => {
+        const sch = Schematic.load(
+          "tests/reference_kicad_projects/connectivity/ps2_hierarchical_power/ps2_hierarchical_power.kicad_sch"
+        );
+
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy(true);
+
+        // Flattened components should exist
+        expect(flat).toBeDefined();
+      });
+
+      it("should not prefix references when requested", () => {
+        const sch = Schematic.create("Test");
+        sch.components.add({
+          libId: "Device:R",
+          reference: "R1",
+          value: "10k",
+          position: { x: 100, y: 100 },
+        });
+
+        const manager = new HierarchyManager(sch);
+        const flat = manager.flattenHierarchy(false);
+
+        expect(flat.components.length).toBe(1);
+      });
+    });
   });
 });

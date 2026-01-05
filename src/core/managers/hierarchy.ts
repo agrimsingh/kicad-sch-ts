@@ -3,7 +3,12 @@
 import { existsSync, readFileSync } from "fs";
 import { dirname, join, resolve, basename } from "path";
 import { Schematic } from "../schematic";
-import { Sheet, SheetPin, HierarchicalLabel } from "../types";
+import {
+  Sheet,
+  SheetPin,
+  HierarchicalLabel,
+  Point,
+} from "../types";
 import { HierarchyError } from "../exceptions";
 
 export interface HierarchyNode {
@@ -32,19 +37,19 @@ export interface SheetPinError {
 export class HierarchyManager {
   private rootSchematic: Schematic;
   private rootPath: string;
-  private cache: Map<string, Schematic> = new Map();
-  private tree: HierarchyNode;
+  private _loadedSchematics: Map<string, Schematic> = new Map();
+  private _hierarchyTree: HierarchyNode | null = null;
 
   constructor(schematic: Schematic) {
     this.rootSchematic = schematic;
     this.rootPath = schematic.fileIO?.getFilePath() || "";
-    this.tree = this.buildHierarchyTree();
+    this._loadedSchematics.set("/", schematic);
   }
 
   /**
    * Build the hierarchy tree from the root schematic.
    */
-  buildHierarchyTree(loadSubsheets: boolean = false): HierarchyNode {
+  buildHierarchyTree(loadSubsheets: boolean = true): HierarchyNode {
     const rootNode: HierarchyNode = {
       path: "/",
       name: this.rootSchematic.title || basename(this.rootPath, ".kicad_sch"),
@@ -55,12 +60,14 @@ export class HierarchyManager {
       level: 0,
     };
 
-    this.buildNodeChildren(rootNode, loadSubsheets);
-    this.tree = rootNode;
+    this._hierarchyTree = rootNode;
+    if (loadSubsheets) {
+      this._buildTreeRecursive(rootNode);
+    }
     return rootNode;
   }
 
-  private buildNodeChildren(node: HierarchyNode, loadSubsheets: boolean): void {
+  private _buildTreeRecursive(node: HierarchyNode): void {
     const schematic = node.schematic;
     if (!schematic) return;
 
@@ -80,17 +87,133 @@ export class HierarchyManager {
         level: node.level + 1,
       };
 
-      if (loadSubsheets && existsSync(childPath)) {
+      if (existsSync(childPath)) {
         try {
-          const childSchematic = this.loadSubsheet(childPath);
+          const childSchematic =
+            this._loadedSchematics.get(childPath) || Schematic.load(childPath);
+          this._loadedSchematics.set(childPath, childSchematic);
           childNode.schematic = childSchematic;
-          this.buildNodeChildren(childNode, loadSubsheets);
+          this._buildTreeRecursive(childNode);
         } catch (e) {
           console.error(`Failed to load subsheet ${childPath}:`, e);
         }
       }
-
       node.children.push(childNode);
+    }
+  }
+
+  /**
+   * Flatten the hierarchy into a single schematic with all components.
+   */
+  flattenHierarchy(prefixReferences: boolean = true): Schematic {
+    if (!this._hierarchyTree) this.buildHierarchyTree(true);
+
+    const flatSchematic = Schematic.create("Flattened");
+
+    this._flattenRecursive(
+      this._hierarchyTree!,
+      flatSchematic,
+      prefixReferences,
+      ""
+    );
+    return flatSchematic;
+  }
+
+  private _flattenRecursive(
+    node: HierarchyNode,
+    flatSchematic: Schematic,
+    prefixReferences: boolean,
+    prefix: string
+  ): void {
+    if (!node.schematic) return;
+
+    const transformPoint = (p: Point, sheet: Sheet): Point => {
+      return { x: p.x + sheet.position.x, y: p.y + sheet.position.y };
+    };
+
+    for (const component of node.schematic.components) {
+      const newRef =
+        prefixReferences && node.parent
+          ? `${prefix}${component.reference}`
+          : component.reference;
+      // Skip if component with this reference already exists
+      if (flatSchematic.components.get(newRef)) continue;
+
+      const sheetInstance = node.parent?.schematic?.sheets.find(
+        (s) => s.name.value === node.name
+      );
+      const pos = sheetInstance
+        ? transformPoint(component.position, sheetInstance)
+        : component.position;
+
+      flatSchematic.components.add({
+        libId: component.libId,
+        reference: newRef,
+        value: component.value,
+        position: pos,
+        rotation: component.rotation,
+        mirror: component.mirror,
+        unit: component.unit,
+        footprint: component.footprint,
+        inBom: component.inBom,
+        onBoard: component.onBoard,
+      });
+    }
+
+    for (const wire of node.schematic.wires) {
+      const sheetInstance = node.parent?.schematic?.sheets.find(
+        (s) => s.name.value === node.name
+      );
+      const points = sheetInstance
+        ? wire.points.map((p) => transformPoint(p, sheetInstance))
+        : wire.points;
+      flatSchematic.wires.add({ points, stroke: wire.stroke });
+    }
+
+    for (const label of node.schematic.labels) {
+      const sheetInstance = node.parent?.schematic?.sheets.find(
+        (s) => s.name.value === node.name
+      );
+      const pos = sheetInstance
+        ? transformPoint(label.position, sheetInstance)
+        : label.position;
+      flatSchematic.labels.add({
+        text: label.text,
+        position: pos,
+        rotation: label.rotation,
+        effects: label.effects,
+      });
+    }
+
+    for (const junction of node.schematic.junctions) {
+      const sheetInstance = node.parent?.schematic?.sheets.find(
+        (s) => s.name.value === node.name
+      );
+      const pos = sheetInstance
+        ? transformPoint(junction.position, sheetInstance)
+        : junction.position;
+      flatSchematic.junctions.add({
+        position: pos,
+        diameter: junction.diameter,
+        color: junction.color,
+      });
+    }
+
+    for (const child of node.children) {
+      const sheet = node.schematic.sheets.find(
+        (s) => s.name.value === child.name
+      );
+      if (sheet) {
+        const childPrefix = prefixReferences
+          ? `${prefix}${sheet.name.value}/`
+          : prefix;
+        this._flattenRecursive(
+          child,
+          flatSchematic,
+          prefixReferences,
+          childPrefix
+        );
+      }
     }
   }
 
@@ -98,12 +221,12 @@ export class HierarchyManager {
    * Load a subsheet schematic.
    */
   loadSubsheet(filePath: string): Schematic {
-    if (this.cache.has(filePath)) {
-      return this.cache.get(filePath)!;
+    if (this._loadedSchematics.has(filePath)) {
+      return this._loadedSchematics.get(filePath)!;
     }
 
     const schematic = Schematic.load(filePath);
-    this.cache.set(filePath, schematic);
+    this._loadedSchematics.set(filePath, schematic);
     return schematic;
   }
 
@@ -111,7 +234,10 @@ export class HierarchyManager {
    * Get the hierarchy tree.
    */
   getTree(): HierarchyNode {
-    return this.tree;
+    if (!this._hierarchyTree) {
+      this.buildHierarchyTree();
+    }
+    return this._hierarchyTree!;
   }
 
   /**
@@ -127,7 +253,7 @@ export class HierarchyManager {
       }
     };
 
-    traverse(this.tree);
+    traverse(this.getTree());
     return result;
   }
 
@@ -144,7 +270,7 @@ export class HierarchyManager {
       return undefined;
     };
 
-    return traverse(this.tree);
+    return traverse(this.getTree());
   }
 
   /**
@@ -160,7 +286,7 @@ export class HierarchyManager {
       }
     };
 
-    traverse(this.tree, 0);
+    traverse(this.getTree(), 0);
     return maxDepth;
   }
 
@@ -227,7 +353,7 @@ export class HierarchyManager {
       }
     };
 
-    validateNode(this.tree);
+    validateNode(this.getTree());
 
     return {
       valid: errors.length === 0,
@@ -255,7 +381,7 @@ export class HierarchyManager {
       }
     };
 
-    traverse(this.tree);
+    traverse(this.getTree());
     return result;
   }
 
@@ -285,7 +411,7 @@ export class HierarchyManager {
       }
     };
 
-    traverse(this.tree);
+    traverse(this.getTree());
     return result;
   }
 
@@ -304,7 +430,7 @@ export class HierarchyManager {
       }
     };
 
-    traverse(this.tree);
+    traverse(this.getTree());
     return count;
   }
 }

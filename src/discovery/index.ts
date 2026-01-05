@@ -1,7 +1,3 @@
 // src/discovery/index.ts
 
-export {
-  ComponentSearchIndex,
-  SearchResult,
-  IndexEntry,
-} from "./search-index";
+export { ComponentSearchIndex, SearchResult } from "./search-index";
