@@ -1,7 +1,7 @@
 {
   "name": "kicad-sch-ts",
   "version": "1.0.0",
-  "description": "TypeScript library for KiCAD schematic files",
+  "description": "TypeScript library for KiCad schematic files",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "pretest": "npm rebuild better-sqlite3",
     "test": "jest",
     "test:parity": "jest --runTestsByPath test/integration/round-trip.test.ts test/integration/serialization.test.ts test/integration/hierarchical-connectivity.test.ts test/integration/library-inheritance.test.ts test/integration/property-positioning.test.ts test/integration/graphics.test.ts test/integration/multi-unit.test.ts test/integration/cli-parity.test.ts test/integration/mcp-parity.test.ts test/integration/coordinate-system.test.ts test/integration/api-ergonomics.test.ts test/integration/sym-lib-table.test.ts",
     "test:watch": "jest --watch",
@@ -16,17 +17,28 @@
   },
   "keywords": [
     "kicad",
+    "kicad-sch",
     "schematic",
+    "schematics",
     "eda",
     "electronics",
-    "pcb"
+    "netlist",
+    "erc",
+    "bom",
+    "symbol",
+    "mcp",
+    "automation"
   ],
-  "author": "",
+  "author": "Agrim Singh",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourorg/kicad-sch-ts.git"
+    "url": "https://github.com/agrimsingh/kicad-sch-ts.git"
   },
+  "bugs": {
+    "url": "https://github.com/agrimsingh/kicad-sch-ts/issues"
+  },
+  "homepage": "https://github.com/agrimsingh/kicad-sch-ts",
   "files": [
     "dist",
     "bin"
