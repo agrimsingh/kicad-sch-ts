@@ -33,3 +33,8 @@ export { searchSymbolsTool, handleSearchSymbols } from "./search-symbols";
 export { getSymbolInfoTool, handleGetSymbolInfo } from "./get-symbol-info";
 
 export { discoverPinsTool, handleDiscoverPins } from "./discover-pins";
+
+export {
+  manageSymbolLibraryTool,
+  handleManageSymbolLibrary,
+} from "./manage-symbol-library";

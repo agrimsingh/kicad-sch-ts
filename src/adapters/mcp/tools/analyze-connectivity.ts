@@ -2,6 +2,7 @@
 
 import { getCurrentSchematic } from "./manage-schematic";
 import { ConnectivityAnalyzer } from "../../../connectivity/analyzer";
+import { getSymbolCache } from "../../../library/cache";
 
 export const analyzeConnectivityTool = {
   name: "analyze_connectivity",
@@ -32,7 +33,7 @@ export async function handleAnalyzeConnectivity(args: any): Promise<any> {
   if (!sch) throw new Error("No schematic loaded. Use manage_schematic first.");
 
   const { action, component, pin } = args;
-  const analyzer = new ConnectivityAnalyzer(sch);
+  const analyzer = new ConnectivityAnalyzer(sch, getSymbolCache());
 
   switch (action) {
     case "nets":

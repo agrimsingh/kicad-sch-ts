@@ -191,6 +191,10 @@ export class ConnectivityAnalyzer {
     this.symbolCache = symbolCache;
   }
 
+  getPinsForComponent(component: Component): PinConnection[] {
+    return this.getComponentPinPositions(component);
+  }
+
   /**
    * Build connectivity map and return all nets.
    */
@@ -457,27 +461,20 @@ export class ConnectivityAnalyzer {
     const pins: PinConnection[] = [];
 
     if (!this.symbolCache) {
-      // Fallback: use pin data from component if available
-      for (const [pinNumber] of component.data.pins) {
-        // Without symbol cache, we can't determine exact positions
-        // Use component position as approximation
-        pins.push({
-          reference: component.reference,
-          pin: pinNumber,
-          position: component.position,
-        });
-      }
-      return pins;
+      return this.getFallbackPins(component);
     }
 
     const symbolDef = this.symbolCache.getSymbol(component.libId);
     if (!symbolDef) {
-      return pins;
+      return this.getFallbackPins(component);
     }
 
-    const unit = symbolDef.units.get(component.unit) || symbolDef.units.get(0);
+    const unit =
+      symbolDef.units.get(component.unit) ||
+      symbolDef.units.get(0) ||
+      symbolDef.units.get(1);
     if (!unit) {
-      return pins;
+      return this.getFallbackPins(component);
     }
 
     for (const pin of unit.pins) {
@@ -496,6 +493,20 @@ export class ConnectivityAnalyzer {
       });
     }
 
+    return pins;
+  }
+
+  private getFallbackPins(component: Component): PinConnection[] {
+    const pins: PinConnection[] = [];
+    for (const [pinNumber] of component.data.pins) {
+      // Without symbol cache, we can't determine exact positions.
+      // Use component position as approximation.
+      pins.push({
+        reference: component.reference,
+        pin: pinNumber,
+        position: component.position,
+      });
+    }
     return pins;
   }
 

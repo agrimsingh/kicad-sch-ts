@@ -29,6 +29,10 @@ import {
   handleGetSymbolInfo,
 } from "./tools/get-symbol-info";
 import { discoverPinsTool, handleDiscoverPins } from "./tools/discover-pins";
+import {
+  manageSymbolLibraryTool,
+  handleManageSymbolLibrary,
+} from "./tools/manage-symbol-library";
 import { createLogger } from "../../core/logger";
 
 const tools = [
@@ -42,6 +46,7 @@ const tools = [
   searchSymbolsTool,
   getSymbolInfoTool,
   discoverPinsTool,
+  manageSymbolLibraryTool,
 ];
 
 const handlers: Record<string, (args: any) => Promise<any>> = {
@@ -55,6 +60,7 @@ const handlers: Record<string, (args: any) => Promise<any>> = {
   search_symbols: handleSearchSymbols,
   get_symbol_info: handleGetSymbolInfo,
   discover_pins: handleDiscoverPins,
+  manage_symbol_library: handleManageSymbolLibrary,
 };
 
 // Preserve native import() in CommonJS output for ESM-only deps.

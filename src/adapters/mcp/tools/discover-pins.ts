@@ -2,6 +2,7 @@
 
 import { getCurrentSchematic } from "./manage-schematic";
 import { ConnectivityAnalyzer } from "../../../connectivity/analyzer";
+import { getSymbolCache } from "../../../library/cache";
 
 export const discoverPinsTool = {
   name: "discover_pins",
@@ -36,7 +37,7 @@ export async function handleDiscoverPins(args: any): Promise<any> {
   if (!sch) throw new Error("No schematic loaded. Use manage_schematic first.");
 
   const { action, position, component } = args;
-  const analyzer = new ConnectivityAnalyzer(sch);
+  const analyzer = new ConnectivityAnalyzer(sch, getSymbolCache());
 
   switch (action) {
     case "at_position":
@@ -61,16 +62,14 @@ export async function handleDiscoverPins(args: any): Promise<any> {
       if (!comp) {
         throw new Error(`Component not found: ${component}`);
       }
-      // Get pin information from component data (pin number -> uuid map)
-      const pinData = comp.data.pins;
-      const pins: Array<{ number: string; uuid: string }> = [];
-      for (const [number, uuid] of pinData) {
-        pins.push({ number, uuid });
-      }
+      const pins = analyzer.getPinsForComponent(comp);
       return {
         component,
         count: pins.length,
-        pins,
+        pins: pins.map((pin) => ({
+          number: pin.pin,
+          position: pin.position,
+        })),
       };
 
     default:
