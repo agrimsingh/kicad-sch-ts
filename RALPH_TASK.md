@@ -1036,42 +1036,42 @@ MIT
 
 ### Phase 1: CLI Adapter
 
-- [ ] Add `commander` and `chalk` dependencies
-- [ ] Implement main CLI entry point
-- [ ] Implement `demo` command
-- [ ] Implement `bom` command
-- [ ] Implement `bom-manage` command
-- [ ] Implement `erc` command
-- [ ] Implement `netlist` command
-- [ ] Implement `find-libraries` command
-- [ ] Implement `kicad-to-python` command
-- [ ] Implement `export-docs` command
-- [ ] Implement `mcp` command
-- [ ] Add `bin` entry to `package.json`
-- [ ] Pass CLI end-to-end tests
+- [x] Add `commander` and `chalk` dependencies
+- [x] Implement main CLI entry point
+- [x] Implement `demo` command
+- [x] Implement `bom` command
+- [x] Implement `bom-manage` command
+- [x] Implement `erc` command
+- [x] Implement `netlist` command
+- [x] Implement `find-libraries` command
+- [x] Implement `kicad-to-python` command
+- [x] Implement `export-docs` command
+- [x] Implement `mcp` command
+- [x] Add `bin` entry to `package.json`
+- [x] Pass CLI end-to-end tests
 
 ### Phase 2: MCP Server Adapter
 
-- [ ] Add `@modelcontextprotocol/sdk` dependency
-- [ ] Implement MCP server with stdio transport
-- [ ] Implement `manage_schematic` tool
-- [ ] Implement `manage_component` tool
-- [ ] Implement `manage_wire` tool
-- [ ] Implement `manage_label` tool
-- [ ] Implement `analyze_connectivity` tool
-- [ ] Implement `run_erc` tool
-- [ ] Implement `search_symbols` tool
-- [ ] Implement `get_symbol_info` tool
-- [ ] Implement `discover_pins` tool
-- [ ] Pass MCP server tests
+- [x] Add `@modelcontextprotocol/sdk` dependency
+- [x] Implement MCP server with stdio transport
+- [x] Implement `manage_schematic` tool
+- [x] Implement `manage_component` tool
+- [x] Implement `manage_wire` tool
+- [x] Implement `manage_label` tool
+- [x] Implement `analyze_connectivity` tool
+- [x] Implement `run_erc` tool
+- [x] Implement `search_symbols` tool
+- [x] Implement `get_symbol_info` tool
+- [x] Implement `discover_pins` tool
+- [x] Pass MCP server tests
 
 ### Phase 3: Documentation & Packaging
 
-- [ ] Write comprehensive `README.md`
-- [ ] Add JSDoc comments to public API
-- [ ] Create `CHANGELOG.md`
-- [ ] Verify `package.json` is correct
-- [ ] Run `npm publish --dry-run` successfully
+- [x] Write comprehensive `README.md`
+- [x] Add JSDoc comments to public API
+- [x] Create `CHANGELOG.md`
+- [x] Verify `package.json` is correct
+- [x] Run `npm publish --dry-run` successfully
 
 ---
 
