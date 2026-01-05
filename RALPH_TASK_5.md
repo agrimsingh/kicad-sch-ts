@@ -179,9 +179,9 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 8. CLI and MCP Parity
 
-- [ ] Audit TS CLI output and behavior vs Python CLI.
-- [ ] Align MCP tools and error models with Python MCP server.
-- [ ] Add integration tests for CLI and MCP parity.
+- [x] Audit TS CLI output and behavior vs Python CLI.
+- [x] Align MCP tools and error models with Python MCP server.
+- [x] Add integration tests for CLI and MCP parity.
   - Target: `test/integration/cli.test.ts`, `test/integration/mcp.test.ts`.
 
 **Targets**

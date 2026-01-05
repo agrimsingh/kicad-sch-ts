@@ -105,11 +105,17 @@ export async function startMcpServer(options: McpServerOptions): Promise<void> {
         ],
       };
     } catch (error: any) {
+      const payload = {
+        success: false,
+        error: {
+          message: error?.message || "Unknown error",
+        },
+      };
       return {
         content: [
           {
             type: "text",
-            text: `Error: ${error.message}`,
+            text: JSON.stringify(payload, null, 2),
           },
         ],
         isError: true,

@@ -747,3 +747,13 @@ Tests:
 - npx jest test/integration/api-ergonomics.test.ts
 - npx jest test/integration/coordinate-system.test.ts
 - npx jest test/integration/sym-lib-table.test.ts
+
+### 2026-01-06 04:05:00
+Completed Part 8 CLI/MCP parity checks.
+- Added CLI parity test for command availability.
+- Added MCP parity test for label justification schema support.
+- Standardized MCP server error payloads.
+
+Tests:
+- npx jest test/integration/cli-parity.test.ts
+- npx jest test/integration/mcp-parity.test.ts
