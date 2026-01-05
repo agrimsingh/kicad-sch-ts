@@ -195,18 +195,18 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 9. Documentation and Positioning
 
-- [ ] Document TS-specific advantages (fidelity, performance, ergonomics).
-- [ ] Provide Python→TS migration notes.
-- [ ] Add “recipes” for common workflows (BOM, ERC, connectivity).
+- [x] Document TS-specific advantages (fidelity, performance, ergonomics).
+- [x] Provide Python→TS migration notes.
+- [x] Add “recipes” for common workflows (BOM, ERC, connectivity).
   - Target: `README.md` and new docs if needed.
 
 ---
 
 ## 10. Quality Gates
 
-- [ ] Establish a parity test suite that must pass before release.
-- [ ] Add CI checks for round-trip fidelity on reference projects.
-- [ ] Track regressions in a dedicated CHANGELOG section.
+- [x] Establish a parity test suite that must pass before release.
+- [x] Add CI checks for round-trip fidelity on reference projects.
+- [x] Track regressions in a dedicated CHANGELOG section.
 
 **Acceptance notes**
 - CI fails if parity test suite fails.

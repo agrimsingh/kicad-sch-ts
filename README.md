@@ -206,6 +206,56 @@ The server provides tools for:
 - `get_symbol_info`: Get detailed symbol information
 - `discover_pins`: Find pins at positions
 
+## TypeScript Advantages
+
+- **Static typing**: Rich editor hints and compile-time checks for schematic data.
+- **Speed**: Faster analysis and tool execution in Node.js workflows.
+- **Ergonomics**: Convenient helpers for hierarchy, search, and parity-focused APIs.
+
+## Python → TypeScript Migration
+
+- `Schematic.load(...)` / `Schematic.create(...)` are direct equivalents.
+- Collections map 1:1 (`components`, `wires`, `labels`, `sheets`).
+- Analysis classes carry the same semantics (`ConnectivityAnalyzer`, `ElectricalRulesChecker`, `HierarchyManager`).
+- For scripting, use Node.js tooling instead of Python entry points.
+
+## Recipes
+
+### BOM Audit
+
+```typescript
+import { BOMPropertyAuditor } from "kicad-sch-ts";
+
+const auditor = new BOMPropertyAuditor();
+const report = auditor.auditSchematic("my_project.kicad_sch", [
+  "PartNumber",
+  "Manufacturer",
+]);
+console.log(report);
+```
+
+### ERC
+
+```typescript
+import { ElectricalRulesChecker, Schematic } from "kicad-sch-ts";
+
+const sch = Schematic.load("my_project.kicad_sch");
+const checker = new ElectricalRulesChecker(sch);
+const result = checker.check();
+console.log(result);
+```
+
+### Connectivity
+
+```typescript
+import { ConnectivityAnalyzer, Schematic } from "kicad-sch-ts";
+
+const sch = Schematic.load("my_project.kicad_sch");
+const analyzer = new ConnectivityAnalyzer(sch);
+const nets = analyzer.analyzeNets();
+console.log(nets.map((net) => net.name));
+```
+
 ## Compatibility
 
 - **Node.js**: 18.0.0 or later

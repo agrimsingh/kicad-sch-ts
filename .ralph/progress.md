@@ -757,3 +757,12 @@ Completed Part 8 CLI/MCP parity checks.
 Tests:
 - npx jest test/integration/cli-parity.test.ts
 - npx jest test/integration/mcp-parity.test.ts
+
+### 2026-01-06 04:25:00
+Completed Part 9 documentation updates.
+- Added TypeScript advantages, migration notes, and workflow recipes to README.
+
+### 2026-01-06 04:40:00
+Completed Part 10 quality gates.
+- Added parity test suite script and CI workflow for parity checks.
+- Added CHANGELOG parity regression section.

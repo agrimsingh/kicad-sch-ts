@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
+    "test:parity": "jest --runTestsByPath test/integration/round-trip.test.ts test/integration/serialization.test.ts test/integration/hierarchical-connectivity.test.ts test/integration/library-inheritance.test.ts test/integration/property-positioning.test.ts test/integration/graphics.test.ts test/integration/multi-unit.test.ts test/integration/cli-parity.test.ts test/integration/mcp-parity.test.ts test/integration/coordinate-system.test.ts test/integration/api-ergonomics.test.ts test/integration/sym-lib-table.test.ts",
     "test:watch": "jest --watch",
     "prepublishOnly": "npm run build && npm test"
   },
