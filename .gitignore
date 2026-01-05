@@ -1,2 +1,4 @@
 dist
 node_modules
+# Ralph config (may contain API key)
+.cursor/ralph-config.json
