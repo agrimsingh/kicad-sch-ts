@@ -706,3 +706,14 @@ Completed Part 3 symbol library and pin semantics.
 
 Tests:
 - npx jest test/integration/library-inheritance.test.ts
+
+### 2026-01-06 02:05:00
+Completed Part 4 property positioning.
+- Added property positioning module with library-derived offsets and fallback rules.
+- Component addition now uses computed property positions and rotations.
+- Added symbol property position parsing and cache path controls for tests.
+- Fixed float parsing for numeric fields in schematic parsing.
+- Added property positioning tests including reference schematics.
+
+Tests:
+- npx jest test/integration/property-positioning.test.ts

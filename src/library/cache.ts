@@ -101,6 +101,11 @@ export class SymbolLibraryCache {
     return [...this.libraryPaths];
   }
 
+  setLibraryPaths(paths: string[]): void {
+    this.libraryPaths = [...paths];
+    this.clearCache();
+  }
+
   /**
    * Get all available library names.
    */
@@ -252,6 +257,7 @@ export class SymbolLibraryCache {
       inBom: true,
       onBoard: true,
       properties: new Map(),
+      propertyPositions: new Map(),
       units: new Map(),
     };
 
@@ -341,6 +347,13 @@ export class SymbolLibraryCache {
     }
 
     symbol.properties.set(name, propValue);
+    if (symbol.propertyPositions) {
+      symbol.propertyPositions.set(name, [
+        propValue.position.x,
+        propValue.position.y,
+        propValue.rotation,
+      ]);
+    }
   }
 
   private parsePinNames(sexp: unknown[], symbol: SymbolDefinition): void {

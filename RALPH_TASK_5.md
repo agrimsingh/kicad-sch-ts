@@ -105,9 +105,9 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 4. Component Property Positioning
 
-- [ ] Port property positioning logic (library-derived offsets).
-- [ ] Add TS fallbacks for common symbols if library data missing.
-- [ ] Add tests for property positioning reference schematics.
+- [x] Port property positioning logic (library-derived offsets).
+- [x] Add TS fallbacks for common symbols if library data missing.
+- [x] Add tests for property positioning reference schematics.
   - Suggested fixtures: `tests/reference_kicad_projects/property_positioning_*`.
 
 **Targets**

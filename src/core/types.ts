@@ -353,6 +353,7 @@ export interface SymbolDefinition {
   inBom: boolean;
   onBoard: boolean;
   properties: Map<string, PropertyValue>;
+  propertyPositions?: Map<string, [number, number, number]>;
   units: Map<number, SymbolUnit>;
 }
 

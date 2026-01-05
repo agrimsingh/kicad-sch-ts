@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { BaseCollection, IndexRegistry } from "./base";
 import { SchematicSymbol, Point, PropertyValue } from "../types";
+import { getPropertyPosition } from "../property-positioning";
 
 /**
  * Wrapper class for a component that provides a convenient API.
@@ -142,24 +143,43 @@ export class ComponentCollection extends BaseCollection<Component> {
 
   add(options: AddComponentOptions): Component {
     const uuid = randomUUID();
+    const componentRotation = options.rotation || 0;
 
     const properties = new Map<string, PropertyValue>();
+    const referencePosition = getPropertyPosition(
+      options.libId,
+      "Reference",
+      options.position,
+      componentRotation
+    );
+    const valuePosition = getPropertyPosition(
+      options.libId,
+      "Value",
+      options.position,
+      componentRotation
+    );
     properties.set("Reference", {
       value: options.reference,
-      position: { x: options.position.x + 1.27, y: options.position.y - 1.27 },
-      rotation: 0,
+      position: referencePosition.position,
+      rotation: referencePosition.rotation,
     });
     properties.set("Value", {
       value: options.value,
-      position: { x: options.position.x + 1.27, y: options.position.y + 1.27 },
-      rotation: 0,
+      position: valuePosition.position,
+      rotation: valuePosition.rotation,
     });
 
     if (options.footprint) {
+      const footprintPosition = getPropertyPosition(
+        options.libId,
+        "Footprint",
+        options.position,
+        componentRotation
+      );
       properties.set("Footprint", {
         value: options.footprint,
-        position: { x: options.position.x, y: options.position.y + 2.54 },
-        rotation: 0,
+        position: footprintPosition.position,
+        rotation: footprintPosition.rotation,
       });
     }
 
@@ -179,7 +199,7 @@ export class ComponentCollection extends BaseCollection<Component> {
       uuid,
       libId: options.libId,
       position: options.position,
-      rotation: options.rotation || 0,
+      rotation: componentRotation,
       mirror: options.mirror,
       unit: options.unit || 1,
       inBom: options.inBom !== false,

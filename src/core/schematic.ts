@@ -2,7 +2,7 @@
 
 import { readFileSync, writeFileSync } from "fs";
 import { randomUUID } from "crypto";
-import { SExpressionParser, Symbol, SExp, isSymbol, isList, getTag, findElement, findElements } from "./parser";
+import { SExpressionParser, Symbol, SExp, isSymbol, isList, getTag, findElement, findElements, isFloat } from "./parser";
 import { ExactFormatter } from "./formatter";
 import { ParseError } from "./exceptions";
 import {
@@ -951,6 +951,7 @@ export class Schematic {
     if (!sexp || index >= sexp.length) return null;
     const val = sexp[index];
     if (typeof val === "number") return val;
+    if (isFloat(val)) return val.value;
     return null;
   }
 
