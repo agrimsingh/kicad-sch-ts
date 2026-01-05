@@ -162,3 +162,81 @@ for (const file of testFiles) {
 [18:57:39] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/test/unit/parser.test.ts (87 lines, ~6.7KB)
 [18:57:46] 🟡 TOKENS: 61540 / 80000 (76%) - approaching limit
 [18:57:55] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npm test 2>&1 → exit 0
+[18:58:17] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npm run build && node -e "
+const fs = require('fs');
+const { Schematic } = require('./dist');
+
+const testFiles = [
+  'tests/reference_kicad_projects/sheet_pins/sheet_pins.kicad_sch',
+  'tests/reference_kicad_projects/sheet_pins/subsheet.kicad_sch',
+  'tests/reference_kicad_projects/connectivity/ps2_hierarchical_power/ps2_hierarchical_power.kicad_sch',
+  'tests/reference_kicad_projects/connectivity/ps2_hierarchical_power/child_circuit.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_capacitor/capacitor.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_diode/diode.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_led/led.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_transistor_bjt/transistor_bjt.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_op_amp/op_amp.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_logic_ic/logic_ic.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_inductor/inductor.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_connector/connector.kicad_sch',
+  'tests/reference_kicad_projects/property_positioning_capacitor_electrolytic/capacitor_electrolytic.kicad_sch',
+];
+
+let passed = 0, failed = 0;
+
+for (const file of testFiles) {
+  try {
+    const original = fs.readFileSync(file, 'utf-8');
+    const sch = Schematic.fromString(original);
+    const output = sch.format();
+    const match = output.trim() === original.trim();
+    console.log(\`\${match ? '✓' : '✗'} \${file.split('/').pop()}\`);
+    if (match) passed++;
+    else {
+      failed++;
+      const origLines = original.trim().split('\\n');
+      const outLines = output.trim().split('\\n');
+      for (let i = 0; i < Math.min(origLines.length, outLines.length); i++) {
+        if (origLines[i] !== outLines[i]) {
+          console.log(\`  Line \${i+1}: Expected: \${JSON.stringify(origLines[i])}\`);
+          console.log(\`  Line \${i+1}: Got:      \${JSON.stringify(outLines[i])}\`);
+          break;
+        }
+      }
+      if (origLines.length !== outLines.length) {
+        console.log(\`  Line count: expected \${origLines.length}, got \${outLines.length}\`);
+      }
+    }
+  } catch (e) {
+    console.log(\`✗ \${file.split('/').pop()}: \${e.message}\`);
+    failed++;
+  }
+}
+console.log(\`\\nResult: \${passed}/\${testFiles.length} passed\`);
+" 2>&1 → exit 0
+[18:58:17] 🟡 TOKENS: 61577 / 80000 (76%) - approaching limit
+[18:58:47] 🟡 TOKENS: 61601 / 80000 (77%) - approaching limit
+[18:59:00] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npm test 2>&1 → exit 0
+[18:59:06] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && git status → exit 0
+[18:59:07] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && git diff --stat → exit 0
+[18:59:08] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && git log --oneline -5 → exit 0
+[18:59:16] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && git add test/integration/round-trip.test.ts && git commit -m "$(cat <<'EOF'
+ralph: expand round-trip tests to cover all reference files
+
+Added comprehensive round-trip tests for:
+- Hierarchical label rotations
+- Rectangles and graphics
+- Text box rotations
+- Text effects
+- Multi-unit components (TL072)
+- Property preservation
+- Sheet pins and hierarchical schematics
+- Connectivity/power reference files
+- Property positioning for 10 component types
+
+All 53 tests now pass with byte-for-byte identity.
+EOF
+)" → exit 0
+[18:59:18] 🟡 TOKENS: 61622 / 80000 (77%) - approaching limit
+[18:59:40] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/.ralph/progress.md (95 lines, ~7.4KB)
+[18:59:53] 🟡 TOKENS: 63522 / 80000 (79%) - approaching limit

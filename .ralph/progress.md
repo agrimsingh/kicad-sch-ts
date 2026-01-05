@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Iterations completed: 1
+- Iterations completed: 2
 - Current status: ✅ PART 1 COMPLETE
 
 ## How This Works
@@ -82,13 +82,37 @@ This is how Ralph maintains continuity across iterations.
    - Wire add operations work correctly
    - Label add operations work correctly
 
-**Test Results: 34 tests passing**
-- test/unit/parser.test.ts: 10 tests
-- test/unit/formatter.test.ts: 10 tests
-- test/integration/round-trip.test.ts: 14 tests
+**Test Results: 34 tests passing** (Session 1)
 
 **Key Technical Decisions:**
 1. Parser uses tagged token types to distinguish quoted strings from symbols
 2. Formatter preserves exact KiCAD format with tabs for indentation
 3. Round-trip fidelity achieved by preserving original S-expression structure
 4. Empty block elements formatted on single line for KiCAD compatibility
+
+---
+
+### 2026-01-05 - Session 2 Work
+
+**Session 2 started** (model: opus-4.5-thinking)
+
+**Improvements made:**
+1. Added `Float` class to parser to preserve original float formatting (fixes 0.0000 → 0 issue)
+2. Updated formatter to use original string representation for floats
+3. Expanded round-trip tests to cover ALL reference files:
+   - hierarchical_label_rotations
+   - rectangles
+   - text_box_rotations
+   - text_effects
+   - multi_unit_tl072
+   - property_preservation
+   - sheet_pins (+ subsheet)
+   - ps2_hierarchical_power (+ child_circuit)
+   - property_positioning for 10 component types
+
+**Test Results: 53 tests passing** (Session 2)
+- test/unit/parser.test.ts: 10 tests
+- test/unit/formatter.test.ts: 10 tests
+- test/integration/round-trip.test.ts: 33 tests (expanded from 14)
+
+✅ **PART 1 COMPLETE**: All completion criteria verified
