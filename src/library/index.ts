@@ -10,4 +10,5 @@ export {
   showSymbolPins,
   validateSymbolInheritance,
   validateAllSymbolInheritance,
+  addSymLibTable,
 } from "./cache";

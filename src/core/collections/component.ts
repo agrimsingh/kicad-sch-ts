@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { BaseCollection, IndexRegistry } from "./base";
 import { SchematicSymbol, Point, PropertyValue } from "../types";
 import { getPropertyPosition } from "../property-positioning";
+import { toSchematicPoint } from "../config";
 import { getSymbolCache, SymbolLibraryCache } from "../../library/cache";
 import { SymbolDefinition } from "../types";
 
@@ -98,6 +99,10 @@ export class Component {
     return this.symbol.properties.get(name)?.value;
   }
 
+  hasProperty(name: string): boolean {
+    return this.symbol.properties.has(name);
+  }
+
   setProperty(name: string, value: string): void {
     const existing = this.symbol.properties.get(name);
     if (existing) {
@@ -177,18 +182,19 @@ export class ComponentCollection extends BaseCollection<Component> {
   ): Component {
     const uuid = randomUUID();
     const componentRotation = options.rotation || 0;
+    const position = toSchematicPoint(options.position);
 
     const properties = new Map<string, PropertyValue>();
     const referencePosition = getPropertyPosition(
       options.libId,
       "Reference",
-      options.position,
+      position,
       componentRotation
     );
     const valuePosition = getPropertyPosition(
       options.libId,
       "Value",
-      options.position,
+      position,
       componentRotation
     );
     properties.set("Reference", {
@@ -206,7 +212,7 @@ export class ComponentCollection extends BaseCollection<Component> {
       const footprintPosition = getPropertyPosition(
         options.libId,
         "Footprint",
-        options.position,
+        position,
         componentRotation
       );
       properties.set("Footprint", {
@@ -231,7 +237,7 @@ export class ComponentCollection extends BaseCollection<Component> {
     const symbol: SchematicSymbol = {
       uuid,
       libId: options.libId,
-      position: options.position,
+      position,
       rotation: componentRotation,
       mirror: options.mirror,
       unit: options.unit || 1,

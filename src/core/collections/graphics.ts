@@ -13,6 +13,7 @@ import {
   Stroke,
   FillType,
 } from "../types";
+import { toSchematicPoint } from "../config";
 
 export interface AddRectangleOptions {
   start: Point;
@@ -25,8 +26,8 @@ export class RectangleCollection extends BaseCollection<SchematicRectangle> {
   add(options: AddRectangleOptions): SchematicRectangle {
     const rect: SchematicRectangle = {
       uuid: randomUUID(),
-      start: options.start,
-      end: options.end,
+      start: toSchematicPoint(options.start),
+      end: toSchematicPoint(options.end),
       stroke: options.stroke,
       fill: options.fill,
     };
@@ -52,7 +53,7 @@ export class PolylineCollection extends BaseCollection<SchematicPolyline> {
   add(options: AddPolylineOptions): SchematicPolyline {
     const polyline: SchematicPolyline = {
       uuid: randomUUID(),
-      points: options.points,
+      points: options.points.map((pt) => toSchematicPoint(pt)),
       stroke: options.stroke,
       fill: options.fill,
     };
@@ -80,9 +81,9 @@ export class ArcCollection extends BaseCollection<SchematicArc> {
   add(options: AddArcOptions): SchematicArc {
     const arc: SchematicArc = {
       uuid: randomUUID(),
-      start: options.start,
-      mid: options.mid,
-      end: options.end,
+      start: toSchematicPoint(options.start),
+      mid: toSchematicPoint(options.mid),
+      end: toSchematicPoint(options.end),
       stroke: options.stroke,
       fill: options.fill,
     };
@@ -109,7 +110,7 @@ export class CircleCollection extends BaseCollection<SchematicCircle> {
   add(options: AddCircleOptions): SchematicCircle {
     const circle: SchematicCircle = {
       uuid: randomUUID(),
-      center: options.center,
+      center: toSchematicPoint(options.center),
       radius: options.radius,
       stroke: options.stroke,
       fill: options.fill,
@@ -136,7 +137,7 @@ export class BezierCollection extends BaseCollection<SchematicBezier> {
   add(options: AddBezierOptions): SchematicBezier {
     const bezier: SchematicBezier = {
       uuid: randomUUID(),
-      points: options.points,
+      points: options.points.map((pt) => toSchematicPoint(pt)),
       stroke: options.stroke,
       fill: options.fill,
     };
@@ -162,7 +163,7 @@ export class ImageCollection extends BaseCollection<SchematicImage> {
   add(options: AddImageOptions): SchematicImage {
     const image: SchematicImage = {
       uuid: randomUUID(),
-      position: options.position,
+      position: toSchematicPoint(options.position),
       scale: options.scale,
       data: options.data,
     };

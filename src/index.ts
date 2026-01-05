@@ -18,6 +18,8 @@ export {
   setConfig,
   resetConfig,
   GRID_SIZE,
+  toSchematicPoint,
+  fromSchematicPoint,
 } from "./core/config";
 export * from "./core/collections";
 

@@ -735,3 +735,15 @@ Completed Part 6 multi-unit components.
 
 Tests:
 - npx jest test/integration/multi-unit.test.ts
+
+### 2026-01-06 03:35:00
+Completed Part 7 API ergonomics.
+- Added label justification support to label add APIs and MCP tool schema.
+- Added Component.hasProperty and signal find/replace helpers on Schematic.
+- Added coordinate system config with standard Y-axis option and applied to add operations.
+- Added sym-lib-table parsing in symbol cache with tests.
+
+Tests:
+- npx jest test/integration/api-ergonomics.test.ts
+- npx jest test/integration/coordinate-system.test.ts
+- npx jest test/integration/sym-lib-table.test.ts

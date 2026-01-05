@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { BaseCollection } from "./base";
 import { Sheet, Point, Size, Stroke, StrokeType, PropertyValue, SheetPin } from "../types";
+import { toSchematicPoint } from "../config";
 
 export interface AddSheetOptions {
   position: Point;
@@ -15,9 +16,10 @@ export interface AddSheetOptions {
 
 export class SheetCollection extends BaseCollection<Sheet> {
   add(options: AddSheetOptions): Sheet {
+    const position = toSchematicPoint(options.position);
     const sheet: Sheet = {
       uuid: randomUUID(),
-      position: options.position,
+      position,
       size: options.size,
       stroke: options.stroke || {
         width: 0.1524,
@@ -26,12 +28,12 @@ export class SheetCollection extends BaseCollection<Sheet> {
       fill: options.fill,
       name: {
         value: options.name,
-        position: { x: options.position.x + 0.5, y: options.position.y + 0.5 },
+        position: { x: position.x + 0.5, y: position.y + 0.5 },
         rotation: 0,
       },
       filename: {
         value: options.filename,
-        position: { x: options.position.x + 0.5, y: options.position.y + options.size.height - 0.5 },
+        position: { x: position.x + 0.5, y: position.y + options.size.height - 0.5 },
         rotation: 0,
       },
       pins: [],

@@ -11,6 +11,7 @@ import {
   Point,
   TextEffects,
 } from "../types";
+import { toSchematicPoint } from "../config";
 
 type AnyLabel = Label | GlobalLabel | HierarchicalLabel;
 
@@ -21,20 +22,31 @@ export interface AddLabelOptions {
   type?: LabelType;
   shape?: HierarchicalLabelShape;
   effects?: TextEffects;
+  justify?: TextEffects["justify"];
 }
 
 export class LabelCollection extends BaseCollection<AnyLabel> {
   add(options: AddLabelOptions): AnyLabel {
     const uuid = randomUUID();
     const type = options.type || LabelType.LOCAL;
+    let effects = options.effects ? { ...options.effects } : undefined;
+    if (options.justify) {
+      if (effects) {
+        effects.justify = options.justify;
+      } else {
+        effects = { justify: options.justify };
+      }
+    }
+
+    const position = toSchematicPoint(options.position);
 
     if (type === LabelType.GLOBAL) {
       const label: GlobalLabel = {
         uuid,
         text: options.text,
-        position: options.position,
+        position,
         rotation: options.rotation || 0,
-        effects: options.effects,
+        effects,
         shape: options.shape || HierarchicalLabelShape.BIDIRECTIONAL,
         properties: new Map(),
       };
@@ -45,9 +57,9 @@ export class LabelCollection extends BaseCollection<AnyLabel> {
       const label: HierarchicalLabel = {
         uuid,
         text: options.text,
-        position: options.position,
+        position,
         rotation: options.rotation || 0,
-        effects: options.effects,
+        effects,
         shape: options.shape || HierarchicalLabelShape.BIDIRECTIONAL,
       };
       return this.addItem(label);
@@ -56,9 +68,9 @@ export class LabelCollection extends BaseCollection<AnyLabel> {
     const label: Label = {
       uuid,
       text: options.text,
-      position: options.position,
+      position,
       rotation: options.rotation || 0,
-      effects: options.effects,
+      effects,
     };
     return this.addItem(label);
   }

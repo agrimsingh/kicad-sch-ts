@@ -34,6 +34,23 @@ export const manageLabelTool = {
         type: "number",
         description: "Rotation in degrees",
       },
+      justify: {
+        type: "object",
+        properties: {
+          horizontal: {
+            type: "string",
+            enum: ["left", "center", "right"],
+          },
+          vertical: {
+            type: "string",
+            enum: ["top", "center", "bottom"],
+          },
+          mirror: {
+            type: "boolean",
+          },
+        },
+        description: "Text justification",
+      },
     },
     required: ["action"],
   },
@@ -43,7 +60,7 @@ export async function handleManageLabel(args: any): Promise<any> {
   const sch = getCurrentSchematic();
   if (!sch) throw new Error("No schematic loaded. Use manage_schematic first.");
 
-  const { action, type, text, position, rotation } = args;
+  const { action, type, text, position, rotation, justify } = args;
 
   switch (action) {
     case "add":
@@ -56,6 +73,7 @@ export async function handleManageLabel(args: any): Promise<any> {
         position,
         rotation: rotation || 0,
         type: labelType,
+        justify,
       });
       return {
         success: true,

@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { BaseCollection } from "./base";
 import { Text, TextBox, Point, Size, TextEffects, Stroke, FillType } from "../types";
+import { toSchematicPoint } from "../config";
 
 export interface AddTextOptions {
   text: string;
@@ -16,7 +17,7 @@ export class TextCollection extends BaseCollection<Text> {
     const text: Text = {
       uuid: randomUUID(),
       text: options.text,
-      position: options.position,
+      position: toSchematicPoint(options.position),
       rotation: options.rotation || 0,
       effects: options.effects,
     };
@@ -46,7 +47,7 @@ export class TextBoxCollection extends BaseCollection<TextBox> {
     const textBox: TextBox = {
       uuid: randomUUID(),
       text: options.text,
-      position: options.position,
+      position: toSchematicPoint(options.position),
       size: options.size,
       stroke: options.stroke,
       fill: options.fill,

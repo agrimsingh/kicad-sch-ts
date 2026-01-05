@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { BaseCollection } from "./base";
 import { NoConnect, Point } from "../types";
+import { toSchematicPoint } from "../config";
 
 export interface AddNoConnectOptions {
   position: Point;
@@ -12,7 +13,7 @@ export class NoConnectCollection extends BaseCollection<NoConnect> {
   add(options: AddNoConnectOptions): NoConnect {
     const noConnect: NoConnect = {
       uuid: randomUUID(),
-      position: options.position,
+      position: toSchematicPoint(options.position),
     };
     return this.addItem(noConnect);
   }

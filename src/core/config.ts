@@ -24,6 +24,7 @@ export interface KiCADConfig {
   tolerance: ToleranceSettings;
   defaultTextSize: [number, number];
   defaultStrokeWidth: number;
+  coordinateSystem: "kicad" | "standard";
 }
 
 export const DEFAULT_CONFIG: KiCADConfig = {
@@ -42,6 +43,7 @@ export const DEFAULT_CONFIG: KiCADConfig = {
   },
   defaultTextSize: [1.27, 1.27],
   defaultStrokeWidth: 0,
+  coordinateSystem: "kicad",
 };
 
 let globalConfig: KiCADConfig = { ...DEFAULT_CONFIG };
@@ -73,4 +75,18 @@ export function isOnGrid(point: Point): boolean {
     Math.abs(point.x - snapped.x) < 0.001 &&
     Math.abs(point.y - snapped.y) < 0.001
   );
+}
+
+export function toSchematicPoint(point: Point): Point {
+  if (getConfig().coordinateSystem === "standard") {
+    return { x: point.x, y: -point.y };
+  }
+  return point;
+}
+
+export function fromSchematicPoint(point: Point): Point {
+  if (getConfig().coordinateSystem === "standard") {
+    return { x: point.x, y: -point.y };
+  }
+  return point;
 }

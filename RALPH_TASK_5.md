@@ -159,11 +159,11 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 7. API Ergonomics (PR-Driven Enhancements)
 
-- [ ] Add label justification support to add_label.
-- [ ] Add `hasProperty()` to Component.
-- [ ] Add find/replace for signal names.
-- [ ] Add optional coordinate system config (standard Y-axis option).
-- [ ] Add sym-lib-table parsing for third-party libraries.
+- [x] Add label justification support to add_label.
+- [x] Add `hasProperty()` to Component.
+- [x] Add find/replace for signal names.
+- [x] Add optional coordinate system config (standard Y-axis option).
+- [x] Add sym-lib-table parsing for third-party libraries.
 
 **Targets**
 - `src/core/collections/label.ts`

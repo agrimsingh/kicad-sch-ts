@@ -1831,6 +1831,58 @@ export class Schematic {
     this._filePath = filepath;
   }
 
+  findSignalName(name: string): {
+    labels: Array<Label | GlobalLabel | HierarchicalLabel>;
+    sheetPins: SheetPin[];
+  } {
+    const labels = Array.from(this.labels).filter((label) => label.text === name);
+    const sheetPins: SheetPin[] = [];
+
+    for (const sheet of this.sheets) {
+      for (const pin of sheet.pins) {
+        if (pin.name === name) {
+          sheetPins.push(pin);
+        }
+      }
+    }
+
+    return { labels, sheetPins };
+  }
+
+  replaceSignalName(oldName: string, newName: string): {
+    labelsUpdated: number;
+    sheetPinsUpdated: number;
+  } {
+    let labelsUpdated = 0;
+    let sheetPinsUpdated = 0;
+
+    for (const label of this.labels) {
+      if (label.text === oldName) {
+        label.text = newName;
+        labelsUpdated++;
+      }
+    }
+
+    if (labelsUpdated > 0) {
+      this.labels.markModified();
+    }
+
+    for (const sheet of this.sheets) {
+      for (const pin of sheet.pins) {
+        if (pin.name === oldName) {
+          pin.name = newName;
+          sheetPinsUpdated++;
+        }
+      }
+    }
+
+    if (sheetPinsUpdated > 0) {
+      this.sheets.markModified();
+    }
+
+    return { labelsUpdated, sheetPinsUpdated };
+  }
+
   /**
    * Get the title from the title block.
    */

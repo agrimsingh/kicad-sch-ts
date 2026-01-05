@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { BaseCollection } from "./base";
 import { Wire, Point, Stroke, StrokeType } from "../types";
+import { toSchematicPoint } from "../config";
 
 export interface AddWireOptions {
   start?: Point;
@@ -16,9 +17,9 @@ export class WireCollection extends BaseCollection<Wire> {
     let points: Point[];
 
     if (options.points) {
-      points = options.points;
+      points = options.points.map((pt) => toSchematicPoint(pt));
     } else if (options.start && options.end) {
-      points = [options.start, options.end];
+      points = [toSchematicPoint(options.start), toSchematicPoint(options.end)];
     } else {
       throw new Error("Must provide either points array or start/end");
     }

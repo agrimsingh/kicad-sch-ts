@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { BaseCollection } from "./base";
 import { Junction, Point } from "../types";
+import { toSchematicPoint } from "../config";
 
 export interface AddJunctionOptions {
   position: Point;
@@ -14,7 +15,7 @@ export class JunctionCollection extends BaseCollection<Junction> {
   add(options: AddJunctionOptions): Junction {
     const junction: Junction = {
       uuid: randomUUID(),
-      position: options.position,
+      position: toSchematicPoint(options.position),
       diameter: options.diameter || 0,
       color: options.color || [0, 0, 0, 0],
     };

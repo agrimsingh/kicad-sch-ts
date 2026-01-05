@@ -1,7 +1,7 @@
 // src/library/cache.ts
 
 import { existsSync, readdirSync, readFileSync } from "fs";
-import { join, basename } from "path";
+import { join, basename, dirname } from "path";
 import { homedir } from "os";
 import { SExpressionParser, Symbol as SSymbol } from "../core/parser";
 import {
@@ -104,6 +104,56 @@ export class SymbolLibraryCache {
   setLibraryPaths(paths: string[]): void {
     this.libraryPaths = [...paths];
     this.clearCache();
+  }
+
+  addSymLibTable(filePath: string): void {
+    if (!existsSync(filePath)) {
+      throw new LibraryError(`sym-lib-table not found: ${filePath}`);
+    }
+
+    const content = readFileSync(filePath, "utf-8");
+    const sexp = this.parser.parse(content) as unknown[];
+
+    if (
+      !Array.isArray(sexp) ||
+      !(sexp[0] instanceof SSymbol) ||
+      sexp[0].name !== "sym_lib_table"
+    ) {
+      throw new LibraryError("Invalid sym-lib-table format");
+    }
+
+    const baseDir = dirname(filePath);
+    const extractUri = (libEntry: unknown[]): string | null => {
+      for (let i = 1; i < libEntry.length; i++) {
+        const entry = libEntry[i];
+        if (Array.isArray(entry) && entry[0] instanceof SSymbol) {
+          if (entry[0].name === "uri" && typeof entry[1] === "string") {
+            return entry[1];
+          }
+        }
+      }
+      return null;
+    };
+
+    for (let i = 1; i < sexp.length; i++) {
+      const item = sexp[i];
+      if (!Array.isArray(item) || !(item[0] instanceof SSymbol)) continue;
+      if (item[0].name !== "lib") continue;
+
+      const uri = extractUri(item);
+      if (!uri) continue;
+
+      const expanded = this.expandSymLibPath(uri, baseDir);
+      const resolved = expanded.startsWith("/")
+        ? expanded
+        : join(baseDir, expanded);
+
+      const libDir = resolved.endsWith(".kicad_sym") || resolved.endsWith(".lib")
+        ? dirname(resolved)
+        : resolved;
+
+      this.addLibraryPath(libDir);
+    }
   }
 
   /**
@@ -647,6 +697,23 @@ export class SymbolLibraryCache {
     };
   }
 
+  private expandSymLibPath(uri: string, projectDir: string): string {
+    let result = uri.trim();
+    if (result.startsWith("file:")) {
+      result = result.replace(/^file:/, "");
+    }
+
+    const replaceVar = (value: string): string => {
+      if (value === "KIPRJMOD") return projectDir;
+      return process.env[value] || "";
+    };
+
+    result = result.replace(/\$\(([^)]+)\)/g, (_, name) => replaceVar(name));
+    result = result.replace(/\$\{([^}]+)\}/g, (_, name) => replaceVar(name));
+
+    return result;
+  }
+
   /**
    * Search for symbols by name or keywords.
    */
@@ -754,4 +821,8 @@ export function validateSymbolInheritance(libId: string): string[] {
 
 export function validateAllSymbolInheritance(): Map<string, string[]> {
   return getSymbolCache().validateAllInheritanceChains();
+}
+
+export function addSymLibTable(filePath: string): void {
+  getSymbolCache().addSymLibTable(filePath);
 }
