@@ -165,6 +165,11 @@ export class ExactFormatter {
       return atom.name;
     }
 
+    if (isFloat(atom)) {
+      // Use the original string representation to preserve formatting
+      return atom.originalStr;
+    }
+
     if (typeof atom === "string") {
       return this.formatString(atom);
     }

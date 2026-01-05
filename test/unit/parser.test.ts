@@ -1,6 +1,6 @@
 // test/unit/parser.test.ts
 
-import { SExpressionParser, Symbol, SExp } from "../../src/core/parser";
+import { SExpressionParser, Symbol, Float, SExp } from "../../src/core/parser";
 
 describe("SExpressionParser", () => {
   const parser = new SExpressionParser();
@@ -28,7 +28,8 @@ describe("SExpressionParser", () => {
     expect(result).toHaveLength(4);
     expect((result[0] as Symbol).name).toBe("num");
     expect(result[1]).toBe(42);
-    expect(result[2]).toBeCloseTo(3.14);
+    // Floats are wrapped in Float class to preserve original format
+    expect((result[2] as Float).value).toBeCloseTo(3.14);
     expect(result[3]).toBe(-5);
   });
 
@@ -72,8 +73,8 @@ describe("SExpressionParser", () => {
   it("should parse float with many decimals", () => {
     const result = parser.parse("(at 96.52 100.33 0)") as SExp[];
     expect(result).toHaveLength(4);
-    expect(result[1]).toBeCloseTo(96.52);
-    expect(result[2]).toBeCloseTo(100.33);
+    expect((result[1] as Float).value).toBeCloseTo(96.52);
+    expect((result[2] as Float).value).toBeCloseTo(100.33);
     expect(result[3]).toBe(0);
   });
 
