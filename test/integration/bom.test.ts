@@ -105,7 +105,8 @@ describe("BOM Audit", () => {
       const tmpPath = "/tmp/test-bom-grouping.kicad_sch";
       sch.save(tmpPath);
 
-      const bom = auditor.generateBOM(tmpPath);
+      // excludeDnp=false to include all components regardless of inBom flag
+      const bom = auditor.generateBOM(tmpPath, false);
 
       // Should have 2 groups: 10k (qty 2) and 20k (qty 1)
       expect(bom.length).toBe(2);
