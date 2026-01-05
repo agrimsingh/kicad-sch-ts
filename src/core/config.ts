@@ -59,18 +59,3 @@ export function resetConfig(): void {
 }
 
 export const GRID_SIZE = 1.27;
-
-export function snapToGrid(point: Point): Point {
-  return {
-    x: Math.round(point.x / GRID_SIZE) * GRID_SIZE,
-    y: Math.round(point.y / GRID_SIZE) * GRID_SIZE,
-  };
-}
-
-export function isOnGrid(point: Point): boolean {
-  const snapped = snapToGrid(point);
-  return (
-    Math.abs(point.x - snapped.x) < 0.001 &&
-    Math.abs(point.y - snapped.y) < 0.001
-  );
-}

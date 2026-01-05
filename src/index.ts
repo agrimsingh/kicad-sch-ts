@@ -8,7 +8,17 @@ export { SExpressionParser, Symbol, Float, type SExp } from "./core/parser";
 export { ExactFormatter } from "./core/formatter";
 export * from "./core/types";
 export * from "./core/exceptions";
-export * from "./core/config";
+export {
+  KiCADConfig,
+  GridSettings,
+  PositioningSettings,
+  ToleranceSettings,
+  DEFAULT_CONFIG,
+  getConfig,
+  setConfig,
+  resetConfig,
+  GRID_SIZE,
+} from "./core/config";
 export * from "./core/collections";
 
 // Part 2: Library & Analysis modules
