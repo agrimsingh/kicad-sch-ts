@@ -86,6 +86,7 @@ export class ConnectivityAnalyzer {
   private schematic: Schematic;
   private symbolCache?: SymbolLibraryCache;
   private pinPositions: Map<string, PinConnection[]> = new Map(); // position key -> pins
+  private lastPointToNet: Map<string, NetInfo> | null = null;
 
   constructor(schematic: Schematic, symbolCache?: SymbolLibraryCache) {
     this.schematic = schematic;
@@ -99,6 +100,7 @@ export class ConnectivityAnalyzer {
     const uf = new UnionFind();
     const pointLabels = new Map<string, string[]>();
     const pointPins = new Map<string, PinConnection[]>();
+    this.lastPointToNet = new Map();
 
     // Add all wire endpoints
     for (const wire of this.schematic.wires) {
@@ -118,23 +120,32 @@ export class ConnectivityAnalyzer {
       uf.find(jKey);
     }
 
-    // Map labels to positions
-    for (const label of this.schematic.labels) {
-      const key = pointKey(label.position);
+    const addLabelAt = (text: string, position: Point) => {
+      const key = pointKey(position);
       uf.find(key);
       if (!pointLabels.has(key)) {
         pointLabels.set(key, []);
       }
-      pointLabels.get(key)!.push(label.text);
+      pointLabels.get(key)!.push(text);
+    };
+
+    for (const label of this.schematic.labels) {
+      addLabelAt(label.text, label.position);
     }
 
     for (const label of this.schematic.globalLabels) {
-      const key = pointKey(label.position);
-      uf.find(key);
-      if (!pointLabels.has(key)) {
-        pointLabels.set(key, []);
+      addLabelAt(label.text, label.position);
+    }
+
+    for (const label of this.schematic.hierarchicalLabels) {
+      addLabelAt(label.text, label.position);
+    }
+
+    for (const component of this.schematic.components) {
+      const powerName = this.getPowerSymbolName(component);
+      if (powerName) {
+        addLabelAt(powerName, component.position);
       }
-      pointLabels.get(key)!.push(label.text);
     }
 
     // Map component pins to positions
@@ -200,10 +211,20 @@ export class ConnectivityAnalyzer {
           junctions,
           wireCount,
         });
+        for (const member of members) {
+          this.lastPointToNet!.set(member, nets[nets.length - 1]);
+        }
       }
     }
 
     return nets;
+  }
+
+  getNetAtPoint(position: Point): NetInfo | undefined {
+    if (!this.lastPointToNet) {
+      this.analyzeNets();
+    }
+    return this.lastPointToNet?.get(pointKey(position));
   }
 
   /**
@@ -333,6 +354,17 @@ export class ConnectivityAnalyzer {
       x: componentPos.x + rotX,
       y: componentPos.y + rotY,
     };
+  }
+
+  private getPowerSymbolName(component: Component): string | null {
+    const libId = component.libId.toLowerCase();
+    if (libId.startsWith("power:")) {
+      return component.value || null;
+    }
+    if (component.reference.startsWith("#PWR")) {
+      return component.value || null;
+    }
+    return null;
   }
 
   /**

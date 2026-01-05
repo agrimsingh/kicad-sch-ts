@@ -406,6 +406,6 @@ export interface SignalPath {
   signalName: string;
   startPath: string;
   endPath: string;
-  connections: string[];
+  connections: SheetPinConnection[];
   sheetCrossings: number;
 }

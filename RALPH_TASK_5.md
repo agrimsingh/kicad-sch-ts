@@ -59,16 +59,16 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 2. Connectivity and Hierarchy Parity
 
-- [ ] Port hierarchical connectivity:
-  - [ ] sheet pin ↔ hierarchical label connections
-  - [ ] global labels across sheets
-  - [ ] power symbol connectivity
-- [ ] Align data structures to support hierarchical nets.
-- [ ] Extend hierarchy tools:
-  - [ ] hierarchy tree with sheet reuse tracking
-  - [ ] sheet pin validation parity
-  - [ ] cross-sheet signal tracing
-- [ ] Add integration tests for hierarchical connectivity.
+- [x] Port hierarchical connectivity:
+  - [x] sheet pin ↔ hierarchical label connections
+  - [x] global labels across sheets
+  - [x] power symbol connectivity
+- [x] Align data structures to support hierarchical nets.
+- [x] Extend hierarchy tools:
+  - [x] hierarchy tree with sheet reuse tracking
+  - [x] sheet pin validation parity
+  - [x] cross-sheet signal tracing
+- [x] Add integration tests for hierarchical connectivity.
   - Target: `test/integration/hierarchy.test.ts`, `test/integration/connectivity.test.ts`.
 
 **Targets**

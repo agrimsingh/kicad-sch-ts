@@ -8,8 +8,11 @@ import {
   SheetPin,
   HierarchicalLabel,
   Point,
+  SheetPinConnection,
+  SignalPath,
 } from "../types";
 import { HierarchyError } from "../exceptions";
+import { ConnectivityAnalyzer } from "../../connectivity/analyzer";
 
 export interface HierarchyNode {
   path: string;
@@ -20,6 +23,9 @@ export interface HierarchyNode {
   parent?: HierarchyNode;
   sheetPins: SheetPin[];
   level: number;
+  reuseKey?: string;
+  reuseIndex?: number;
+  isReuse?: boolean;
 }
 
 export interface SheetPinValidation {
@@ -39,6 +45,8 @@ export class HierarchyManager {
   private rootPath: string;
   private _loadedSchematics: Map<string, Schematic> = new Map();
   private _hierarchyTree: HierarchyNode | null = null;
+  private _reuseCounts: Map<string, number> = new Map();
+  private _analyzers: Map<string, ConnectivityAnalyzer> = new Map();
 
   constructor(schematic: Schematic) {
     this.rootSchematic = schematic;
@@ -58,9 +66,15 @@ export class HierarchyManager {
       children: [],
       sheetPins: [],
       level: 0,
+      reuseKey: this.rootPath,
+      reuseIndex: 0,
+      isReuse: false,
     };
 
     this._hierarchyTree = rootNode;
+    if (this.rootPath) {
+      this._reuseCounts.set(this.rootPath, 1);
+    }
     if (loadSubsheets) {
       this._buildTreeRecursive(rootNode);
     }
@@ -85,7 +99,12 @@ export class HierarchyManager {
         parent: node,
         sheetPins: [...sheet.pins],
         level: node.level + 1,
+        reuseKey: childPath,
+        reuseIndex: this._reuseCounts.get(childPath) || 0,
+        isReuse: (this._reuseCounts.get(childPath) || 0) > 0,
       };
+
+      this._reuseCounts.set(childPath, (this._reuseCounts.get(childPath) || 0) + 1);
 
       if (existsSync(childPath)) {
         try {
@@ -359,6 +378,188 @@ export class HierarchyManager {
       valid: errors.length === 0,
       errors,
     };
+  }
+
+  getSheetPinConnections(): SheetPinConnection[] {
+    const connections: SheetPinConnection[] = [];
+
+    const traverse = (node: HierarchyNode) => {
+      for (const child of node.children) {
+        if (!child.schematic || !node.schematic) {
+          traverse(child);
+          continue;
+        }
+
+        for (const pin of child.sheetPins) {
+          const label = child.schematic.hierarchicalLabels.find(
+            (l) => l.text === pin.name
+          );
+          connections.push({
+            sheetPath: child.path,
+            pinName: pin.name,
+            labelName: label?.text || pin.name,
+            isMatch: Boolean(label) && label!.shape === pin.shape,
+          });
+        }
+
+        traverse(child);
+      }
+    };
+
+    traverse(this.getTree());
+    return connections;
+  }
+
+  traceSignal(signalName: string): SignalPath | null {
+    const paths = new Set<string>();
+    const connections: SheetPinConnection[] = [];
+
+    const addPathIfNetExists = (
+      node: HierarchyNode,
+      position: Point | null
+    ) => {
+      if (!node.schematic || !position) return;
+      const analyzer = this.getAnalyzerForNode(node);
+      if (!analyzer) return;
+      if (analyzer.getNetAtPoint(position)) {
+        paths.add(node.path);
+      }
+    };
+
+    const traverse = (node: HierarchyNode) => {
+      if (node.schematic) {
+        for (const label of node.schematic.labels) {
+          if (label.text === signalName) {
+            addPathIfNetExists(node, label.position);
+          }
+        }
+        for (const label of node.schematic.globalLabels) {
+          if (label.text === signalName) {
+            addPathIfNetExists(node, label.position);
+          }
+        }
+        for (const label of node.schematic.hierarchicalLabels) {
+          if (label.text === signalName) {
+            addPathIfNetExists(node, label.position);
+          }
+        }
+        for (const component of node.schematic.components) {
+          const powerName = this.getPowerSymbolName(component.libId, component.value, component.reference);
+          if (powerName === signalName) {
+            addPathIfNetExists(node, component.position);
+          }
+        }
+      }
+
+      for (const child of node.children) {
+        if (node.schematic && child.schematic) {
+          for (const pin of child.sheetPins) {
+            if (pin.name !== signalName) continue;
+            const label = child.schematic.hierarchicalLabels.find(
+              (l) => l.text === pin.name
+            );
+            const parentAnalyzer = this.getAnalyzerForNode(node);
+            const childAnalyzer = this.getAnalyzerForNode(child);
+            const parentNet = parentAnalyzer?.getNetAtPoint(pin.position);
+            const childNet = label
+              ? childAnalyzer?.getNetAtPoint(label.position)
+              : undefined;
+
+            connections.push({
+              sheetPath: child.path,
+              pinName: pin.name,
+              labelName: label?.text || pin.name,
+              isMatch: Boolean(label) && label!.shape === pin.shape,
+            });
+
+            if (parentNet && childNet) {
+              paths.add(node.path);
+              paths.add(child.path);
+            }
+          }
+        }
+        traverse(child);
+      }
+    };
+
+    traverse(this.getTree());
+
+    if (paths.size === 0 && connections.length === 0) {
+      return null;
+    }
+
+    const pathList = Array.from(paths);
+    return {
+      signalName,
+      startPath: pathList[0] || "/",
+      endPath: pathList[pathList.length - 1] || "/",
+      connections,
+      sheetCrossings: connections.filter((c) => c.isMatch).length,
+    };
+  }
+
+  traceSignals(): SignalPath[] {
+    const signals = new Set<string>();
+
+    const traverse = (node: HierarchyNode) => {
+      if (node.schematic) {
+        for (const label of node.schematic.labels) {
+          signals.add(label.text);
+        }
+        for (const label of node.schematic.globalLabels) {
+          signals.add(label.text);
+        }
+        for (const label of node.schematic.hierarchicalLabels) {
+          signals.add(label.text);
+        }
+        for (const component of node.schematic.components) {
+          const powerName = this.getPowerSymbolName(component.libId, component.value, component.reference);
+          if (powerName) {
+            signals.add(powerName);
+          }
+        }
+      }
+
+      for (const child of node.children) {
+        traverse(child);
+      }
+    };
+
+    traverse(this.getTree());
+
+    const paths: SignalPath[] = [];
+    for (const signalName of signals) {
+      const traced = this.traceSignal(signalName);
+      if (traced) {
+        paths.push(traced);
+      }
+    }
+    return paths;
+  }
+
+  private getAnalyzerForNode(
+    node: HierarchyNode
+  ): ConnectivityAnalyzer | null {
+    if (!node.schematic) return null;
+    if (!this._analyzers.has(node.path)) {
+      this._analyzers.set(node.path, new ConnectivityAnalyzer(node.schematic));
+    }
+    return this._analyzers.get(node.path) || null;
+  }
+
+  private getPowerSymbolName(
+    libId: string,
+    value: string,
+    reference: string
+  ): string | null {
+    const normalized = libId.toLowerCase();
+    if (normalized.startsWith("power:")) {
+      return value || null;
+    }
+    if (reference.startsWith("#PWR")) {
+      return value || null;
+    }
+    return null;
   }
 
   /**

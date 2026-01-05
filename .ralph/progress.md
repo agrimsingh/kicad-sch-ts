@@ -686,3 +686,13 @@ Completed Part 1 round-trip fidelity work.
 Tests:
 - npm test (fails: better-sqlite3 Node module ABI mismatch in discovery tests)
 - npx jest test/integration/serialization.test.ts
+
+### 2026-01-06 01:10:00
+Completed Part 2 hierarchical connectivity.
+- Connectivity analyzer now includes hierarchical labels and power symbols; added net lookup by point.
+- Hierarchy manager tracks sheet reuse, exposes sheet pin connections, and traces signals across sheets.
+- Updated SignalPath to carry SheetPinConnection details.
+- Added hierarchical connectivity integration tests with fixture and temp hierarchies.
+
+Tests:
+- npx jest test/integration/hierarchical-connectivity.test.ts
