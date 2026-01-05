@@ -31,9 +31,9 @@ This document tracks feature parity between the Python `kicad_sch_api` and this 
 ## Limitations and Decisions
 
 Source docs:
-- `tmp_kicad-sch-api/KNOWN_ISSUES.md`
-- `tmp_kicad-sch-api/docs/KNOWN_LIMITATIONS.md`
-- `tmp_kicad-sch-api/docs/ROUNDTRIP_FIDELITY_ISSUES.md`
+- `https://github.com/circuit-synth/kicad-sch-api/blob/main/KNOWN_ISSUES.md`
+- `https://github.com/circuit-synth/kicad-sch-api/blob/main/docs/KNOWN_LIMITATIONS.md`
+- `https://github.com/circuit-synth/kicad-sch-api/blob/main/docs/ROUNDTRIP_FIDELITY_ISSUES.md`
 
 Decisions are categorized as:
 - **Match**: Keep the same behavior or limitation.

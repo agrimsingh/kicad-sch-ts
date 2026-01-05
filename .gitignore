@@ -4,3 +4,5 @@ node_modules
 .cursor/ralph-config.json
 # Ralph task files
 RALPH_TASK*.md
+# Local kicad-sch-api checkout
+tmp_kicad-sch-api/
