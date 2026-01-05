@@ -1285,43 +1285,43 @@ export class PythonCodeGenerator {
 
 ### Phase 1: Symbol Library Cache
 
-- [ ] Implement `SymbolLibraryCache` class
-- [ ] Implement automatic discovery of KiCAD library paths
-- [ ] Implement parsing for `.kicad_sym` files
-- [ ] Implement `getSymbol`, `searchSymbols`, `getLibrarySymbols`
-- [ ] Pass tests for finding common symbols (e.g., `Device:R`)
+- [x] Implement `SymbolLibraryCache` class
+- [x] Implement automatic discovery of KiCAD library paths
+- [x] Implement parsing for `.kicad_sym` files
+- [x] Implement `getSymbol`, `searchSymbols`, `getLibrarySymbols`
+- [x] Pass tests for finding common symbols (e.g., `Device:R`)
 
 ### Phase 2: Geometry Module
 
-- [ ] Implement `snapToGrid` function
-- [ ] Implement `createOrthogonalRouting` function
-- [ ] Implement `BoundingBox` utilities
-- [ ] Implement `SymbolBoundingBoxCalculator`
-- [ ] Implement `getComponentBoundingBox`
-- [ ] Pass geometry tests
+- [x] Implement `snapToGrid` function
+- [x] Implement `createOrthogonalRouting` function
+- [x] Implement `BoundingBox` utilities
+- [x] Implement `SymbolBoundingBoxCalculator`
+- [x] Implement `getComponentBoundingBox`
+- [x] Pass geometry tests
 
 ### Phase 3: Connectivity & Hierarchy
 
-- [ ] Implement connectivity analysis in `src/connectivity/analyzer.ts`
-- [ ] Implement `checkPinConnection` function
-- [ ] Implement `HierarchyManager` class
-- [ ] Implement `buildHierarchyTree` and `validateSheetPins`
-- [ ] Pass connectivity and hierarchy tests
+- [x] Implement connectivity analysis in `src/connectivity/analyzer.ts`
+- [x] Implement `checkPinConnection` function
+- [x] Implement `HierarchyManager` class
+- [x] Implement `buildHierarchyTree` and `validateSheetPins`
+- [x] Pass connectivity and hierarchy tests
 
 ### Phase 4: Validation/ERC Module
 
-- [ ] Implement `ERCViolation`, `ERCResult`, `ERCConfig` types
-- [ ] Implement `ElectricalRulesChecker` class
-- [ ] Implement duplicate reference check
-- [ ] Implement off-grid check
-- [ ] Pass ERC tests
+- [x] Implement `ERCViolation`, `ERCResult`, `ERCConfig` types
+- [x] Implement `ElectricalRulesChecker` class
+- [x] Implement duplicate reference check
+- [x] Implement off-grid check
+- [x] Pass ERC tests
 
 ### Phase 5: BOM, Discovery & Exporters
 
-- [ ] Implement `BOMPropertyAuditor` class
-- [ ] Implement `ComponentSearchIndex` with SQLite (optional, can be deferred)
-- [ ] Implement `PythonCodeGenerator` class
-- [ ] Pass BOM and exporter tests
+- [x] Implement `BOMPropertyAuditor` class
+- [x] Implement `ComponentSearchIndex` with SQLite (optional, can be deferred)
+- [x] Implement `PythonCodeGenerator` class
+- [x] Pass BOM and exporter tests
 
 ---
 
