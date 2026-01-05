@@ -1,7 +1,50 @@
 // test/integration/erc.test.ts
 
 import { ElectricalRulesChecker, ERCSeverity } from "../../src/validation/erc";
+import {
+  PinConflictMatrix,
+  PinSeverity,
+} from "../../src/validation/pin-matrix";
 import { Schematic } from "../../src";
+
+describe("PinConflictMatrix", () => {
+  const matrix = new PinConflictMatrix();
+
+  it("should flag an error for output-to-output connection", () => {
+    const severity = matrix.checkConnection("output", "output");
+    expect(severity).toBe(PinSeverity.ERROR);
+  });
+
+  it("should be OK for input-to-passive connection", () => {
+    const severity = matrix.checkConnection("input", "passive");
+    expect(severity).toBe(PinSeverity.OK);
+  });
+
+  it("should flag a warning for unspecified-to-input", () => {
+    const severity = matrix.checkConnection("unspecified", "input");
+    expect(severity).toBe(PinSeverity.WARNING);
+  });
+
+  it("should flag an error for power_out-to-power_out connection", () => {
+    const severity = matrix.checkConnection("power_out", "power_out");
+    expect(severity).toBe(PinSeverity.ERROR);
+  });
+
+  it("should be OK for bidirectional-to-bidirectional connection", () => {
+    const severity = matrix.checkConnection("bidirectional", "bidirectional");
+    expect(severity).toBe(PinSeverity.OK);
+  });
+
+  it("should flag an error for no_connect-to-input connection", () => {
+    const severity = matrix.checkConnection("no_connect", "input");
+    expect(severity).toBe(PinSeverity.ERROR);
+  });
+
+  it("should handle tri_state alias", () => {
+    const severity = matrix.checkConnection("tristate", "output");
+    expect(severity).toBe(PinSeverity.WARNING);
+  });
+});
 
 describe("ERC", () => {
   it("should pass for a valid simple schematic", () => {

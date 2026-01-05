@@ -1,8 +1,20 @@
 // src/geometry/symbol-bbox.ts
 
-import { Point, SymbolDefinition, SymbolPin } from "../core/types";
+import {
+  Point,
+  SymbolDefinition,
+  SymbolGraphics,
+  SymbolPin,
+} from "../core/types";
 import { Component } from "../core/collections/component";
 import { SymbolLibraryCache } from "../library/cache";
+import {
+  DEFAULT_PIN_LENGTH,
+  DEFAULT_PIN_NAME_OFFSET,
+  DEFAULT_PIN_NUMBER_SIZE,
+  DEFAULT_PIN_TEXT_WIDTH_RATIO,
+  DEFAULT_TEXT_HEIGHT,
+} from "./font-metrics";
 
 export interface BoundingBox {
   minX: number;
@@ -85,80 +97,179 @@ export function pointInBoundingBox(point: Point, bbox: BoundingBox): boolean {
   );
 }
 
-const DEFAULT_TEXT_HEIGHT = 2.54;
-const DEFAULT_PIN_TEXT_WIDTH_RATIO = 2.0;
-const DEFAULT_PIN_NUMBER_SIZE = 1.27;
-
 export class SymbolBoundingBoxCalculator {
   static calculateBoundingBox(
-    symbol: SymbolDefinition,
-    includeProperties: boolean = true
-  ): BoundingBox {
-    if (!symbol) {
-      return createBoundingBox(-2.54, -2.54, 2.54, 2.54);
+    symbolData: SymbolDefinition,
+    includeProperties: boolean = true,
+    pinNetMap?: Record<string, string>
+  ): [number, number, number, number] {
+    if (!symbolData) {
+      throw new Error("Symbol data is None or empty");
     }
 
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
+    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
 
-    for (const unit of symbol.units.values()) {
+    const updateBounds = (bounds: [number, number, number, number] | null) => {
+      if (!bounds) return;
+      minX = Math.min(minX, bounds[0]);
+      minY = Math.min(minY, bounds[1]);
+      maxX = Math.max(maxX, bounds[2]);
+      maxY = Math.max(maxY, bounds[3]);
+    };
+
+    for (const unit of symbolData.units.values()) {
+      for (const shape of unit.graphics) {
+        updateBounds(this._getShapeBounds(shape));
+      }
       for (const pin of unit.pins) {
-        const pinBbox = this.getPinBounds(pin);
-        minX = Math.min(minX, pinBbox.minX);
-        minY = Math.min(minY, pinBbox.minY);
-        maxX = Math.max(maxX, pinBbox.maxX);
-        maxY = Math.max(maxY, pinBbox.maxY);
+        updateBounds(this._getPinBounds(pin, pinNetMap));
       }
     }
 
+    if (minX === Infinity) {
+      // If no geometry, create a default small box
+      return [-1, -1, 1, 1];
+    }
+
+    const margin = 0.254; // 10 mils
+    minX -= margin;
+    minY -= margin;
+    maxX += margin;
+    maxY += margin;
+
     if (includeProperties) {
-      minY -= DEFAULT_TEXT_HEIGHT * 1.5;
-      maxY += DEFAULT_TEXT_HEIGHT * 1.5;
+      const componentWidth = maxX - minX;
+      const componentHeight = maxY - minY;
+      const propertyWidth = Math.max(10.0, componentWidth * 0.8);
+      const propertyHeight = DEFAULT_TEXT_HEIGHT;
+      const verticalSpacingAbove = Math.max(5.0, componentHeight * 0.1);
+      const verticalSpacingBelow = Math.max(10.0, componentHeight * 0.15);
+
+      minY -= verticalSpacingAbove + propertyHeight;
+      maxY += verticalSpacingBelow + propertyHeight;
+
+      const centerX = (minX + maxX) / 2;
+      minX = Math.min(minX, centerX - propertyWidth / 2);
+      maxX = Math.max(maxX, centerX + propertyWidth / 2);
     }
 
-    if (!isFinite(minX)) {
-      return createBoundingBox(-2.54, -2.54, 2.54, 2.54);
-    }
-
-    return createBoundingBox(minX, minY, maxX, maxY);
+    return [minX, minY, maxX, maxY];
   }
 
-  private static getPinBounds(pin: SymbolPin): BoundingBox {
-    const pos = pin.position;
-    const length = pin.length;
-    const rotation = pin.rotation;
+  private static _getShapeBounds(
+    shape: SymbolGraphics
+  ): [number, number, number, number] | null {
+    const shapeType = shape.type;
+    switch (shapeType) {
+      case "rectangle": {
+        const start = shape.start as Point;
+        const end = shape.end as Point;
+        return [
+          Math.min(start.x, end.x),
+          Math.min(start.y, end.y),
+          Math.max(start.x, end.x),
+          Math.max(start.y, end.y),
+        ];
+      }
+      case "circle": {
+        const center = shape.center as Point;
+        const radius = shape.radius as number;
+        return [
+          center.x - radius,
+          center.y - radius,
+          center.x + radius,
+          center.y + radius,
+        ];
+      }
+      case "arc": {
+        const start = shape.start as Point;
+        const mid = shape.mid as Point;
+        const end = shape.end as Point;
+        const arcMinX = Math.min(start.x, mid.x, end.x);
+        const arcMinY = Math.min(start.y, mid.y, end.y);
+        const arcMaxX = Math.max(start.x, mid.x, end.x);
+        const arcMaxY = Math.max(start.y, mid.y, end.y);
+        return [arcMinX, arcMinY, arcMaxX, arcMaxY];
+      }
+      case "polyline": {
+        const points = shape.pts as Point[];
+        if (!points || points.length === 0) return null;
+        const polyMinX = Math.min(...points.map((p) => p.x));
+        const polyMinY = Math.min(...points.map((p) => p.y));
+        const polyMaxX = Math.max(...points.map((p) => p.x));
+        const polyMaxY = Math.max(...points.map((p) => p.y));
+        return [polyMinX, polyMinY, polyMaxX, polyMaxY];
+      }
+      case "text": {
+        const at = shape.at as Point;
+        const text = shape.text as string;
+        const textWidth = text.length * DEFAULT_TEXT_HEIGHT * 0.6;
+        const textHeight = DEFAULT_TEXT_HEIGHT;
+        return [
+          at.x - textWidth / 2,
+          at.y - textHeight / 2,
+          at.x + textWidth / 2,
+          at.y + textHeight / 2,
+        ];
+      }
+    }
+    return null;
+  }
 
-    let endX = pos.x;
-    let endY = pos.y;
+  private static _getPinBounds(
+    pin: SymbolPin,
+    pinNetMap?: Record<string, string>
+  ): [number, number, number, number] | null {
+    const { x, y } = pin.position;
+    const angle = pin.rotation;
+    const length = pin.length || DEFAULT_PIN_LENGTH;
 
-    switch (rotation) {
-      case 0:
-        endX = pos.x + length;
-        break;
-      case 90:
-        endY = pos.y + length;
-        break;
-      case 180:
-        endX = pos.x - length;
-        break;
-      case 270:
-        endY = pos.y - length;
-        break;
+    const angleRad = (angle * Math.PI) / 180;
+    const endX = x + length * Math.cos(angleRad);
+    const endY = y + length * Math.sin(angleRad);
+
+    let [pinMinX, pinMinY, pinMaxX, pinMaxY] = [
+      Math.min(x, endX),
+      Math.min(y, endY),
+      Math.max(x, endX),
+      Math.max(y, endY),
+    ];
+
+    const pinName = pin.name || "";
+    const pinNumber = pin.number || "";
+
+    const labelText =
+      (pinNetMap && pinNetMap[pinNumber]) || (pinName !== "~" ? pinName : "");
+
+    if (labelText) {
+      const nameWidth =
+        labelText.length * DEFAULT_TEXT_HEIGHT * DEFAULT_PIN_TEXT_WIDTH_RATIO;
+      const offset = DEFAULT_PIN_NAME_OFFSET;
+
+      if (angle === 0) {
+        // Right
+        pinMinX = Math.min(pinMinX, endX - offset - nameWidth);
+      } else if (angle === 180) {
+        // Left
+        pinMaxX = Math.max(pinMaxX, endX + offset + nameWidth);
+      } else if (angle === 90) {
+        // Up
+        pinMinY = Math.min(pinMinY, endY - offset - DEFAULT_TEXT_HEIGHT);
+      } else if (angle === 270) {
+        // Down
+        pinMaxY = Math.max(pinMaxY, endY + offset + DEFAULT_TEXT_HEIGHT);
+      }
     }
 
-    const textWidth = Math.max(
-      pin.name.length * DEFAULT_PIN_TEXT_WIDTH_RATIO * DEFAULT_PIN_NUMBER_SIZE,
-      pin.number.length * DEFAULT_PIN_TEXT_WIDTH_RATIO * DEFAULT_PIN_NUMBER_SIZE
-    );
+    if (pinNumber) {
+      const pinMargin = DEFAULT_PIN_NUMBER_SIZE * 1.5;
+      pinMinX -= pinMargin;
+      pinMinY -= pinMargin;
+      pinMaxX += pinMargin;
+      pinMaxY += pinMargin;
+    }
 
-    const minX = Math.min(pos.x, endX) - textWidth / 2;
-    const maxX = Math.max(pos.x, endX) + textWidth / 2;
-    const minY = Math.min(pos.y, endY) - DEFAULT_PIN_NUMBER_SIZE;
-    const maxY = Math.max(pos.y, endY) + DEFAULT_PIN_NUMBER_SIZE;
-
-    return createBoundingBox(minX, minY, maxX, maxY);
+    return [pinMinX, pinMinY, pinMaxX, pinMaxY];
   }
 }
 
@@ -173,10 +284,13 @@ export function getComponentBoundingBox(
   const symbolDef = symbolCache?.getSymbol(component.libId);
   if (!symbolDef) return null;
 
-  const symbolBbox = SymbolBoundingBoxCalculator.calculateBoundingBox(
-    symbolDef,
-    includeProperties
-  );
+  const [minX, minY, maxX, maxY] =
+    SymbolBoundingBoxCalculator.calculateBoundingBox(
+      symbolDef,
+      includeProperties
+    );
+
+  const symbolBbox = createBoundingBox(minX, minY, maxX, maxY);
 
   return transformBoundingBox(
     symbolBbox,
@@ -218,16 +332,16 @@ function transformBoundingBox(
     };
   });
 
-  let minX = transformed[0].x,
-    maxX = transformed[0].x;
-  let minY = transformed[0].y,
-    maxY = transformed[0].y;
+  let tMinX = transformed[0].x,
+    tMaxX = transformed[0].x;
+  let tMinY = transformed[0].y,
+    tMaxY = transformed[0].y;
   for (const p of transformed) {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
+    tMinX = Math.min(tMinX, p.x);
+    tMaxX = Math.max(tMaxX, p.x);
+    tMinY = Math.min(tMinY, p.y);
+    tMaxY = Math.max(tMaxY, p.y);
   }
 
-  return createBoundingBox(minX, minY, maxX, maxY);
+  return createBoundingBox(tMinX, tMinY, tMaxX, tMaxY);
 }

@@ -24,3 +24,11 @@ export {
   SymbolBoundingBoxCalculator,
   getComponentBoundingBox,
 } from "./symbol-bbox";
+
+export {
+  DEFAULT_TEXT_HEIGHT,
+  DEFAULT_PIN_LENGTH,
+  DEFAULT_PIN_NAME_OFFSET,
+  DEFAULT_PIN_NUMBER_SIZE,
+  DEFAULT_PIN_TEXT_WIDTH_RATIO,
+} from "./font-metrics";

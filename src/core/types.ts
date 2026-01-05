@@ -390,3 +390,22 @@ export interface Net {
   labels: string[];
   wires: Wire[];
 }
+
+// ============================================================
+// Hierarchy (for hierarchy analysis - used in Part 2.5)
+// ============================================================
+
+export interface SheetPinConnection {
+  sheetPath: string;
+  pinName: string;
+  labelName: string;
+  isMatch: boolean;
+}
+
+export interface SignalPath {
+  signalName: string;
+  startPath: string;
+  endPath: string;
+  connections: string[];
+  sheetCrossings: number;
+}
