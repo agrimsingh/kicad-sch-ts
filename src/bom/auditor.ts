@@ -136,48 +136,58 @@ export class BOMPropertyAuditor {
   }
 
   /**
-   * Generate a simple BOM from a schematic.
+   * Generate a simple BOM from a schematic file path.
    */
   generateBOM(
     schematicPath: string,
     excludeDnp: boolean = true
   ): BOMEntry[] {
-    const entries = new Map<string, BOMEntry>();
-
     try {
       const sch = Schematic.load(schematicPath);
-
-      for (const component of sch.components) {
-        // Skip DNP components if requested
-        if (excludeDnp && (!component.inBom || component.data.dnp)) {
-          continue;
-        }
-
-        // Skip power symbols
-        if (component.reference.startsWith("#")) {
-          continue;
-        }
-
-        // Group by value + footprint + libId
-        const key = `${component.value}|${component.footprint}|${component.libId}`;
-
-        if (entries.has(key)) {
-          const entry = entries.get(key)!;
-          entry.quantity++;
-          entry.reference += `, ${component.reference}`;
-        } else {
-          entries.set(key, {
-            reference: component.reference,
-            value: component.value,
-            footprint: component.footprint || "",
-            libId: component.libId,
-            quantity: 1,
-            properties: component.properties,
-          });
-        }
-      }
+      return this.generateBOMFromSchematic(sch, excludeDnp);
     } catch (e) {
       console.error(`Error loading ${schematicPath}:`, e);
+      return [];
+    }
+  }
+
+  /**
+   * Generate a simple BOM from a Schematic object directly.
+   */
+  generateBOMFromSchematic(
+    sch: Schematic,
+    excludeDnp: boolean = true
+  ): BOMEntry[] {
+    const entries = new Map<string, BOMEntry>();
+
+    for (const component of sch.components) {
+      // Skip DNP components if requested
+      if (excludeDnp && (!component.inBom || component.data.dnp)) {
+        continue;
+      }
+
+      // Skip power symbols
+      if (component.reference.startsWith("#")) {
+        continue;
+      }
+
+      // Group by value + footprint + libId
+      const key = `${component.value}|${component.footprint}|${component.libId}`;
+
+      if (entries.has(key)) {
+        const entry = entries.get(key)!;
+        entry.quantity++;
+        entry.reference += `, ${component.reference}`;
+      } else {
+        entries.set(key, {
+          reference: component.reference,
+          value: component.value,
+          footprint: component.footprint || "",
+          libId: component.libId,
+          quantity: 1,
+          properties: component.properties,
+        });
+      }
     }
 
     return Array.from(entries.values());

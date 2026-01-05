@@ -394,3 +394,77 @@ Ralph Session Started: Mon Jan  5 19:18:01 +08 2026
 [19:25:47] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/test/integration/bom.test.ts (126 lines, ~9.8KB)
 [19:25:48] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/src/bom/auditor.ts (206 lines, ~16.0KB)
 [19:25:59] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/test/integration/bom.test.ts (126 lines, ~9.8KB)
+[19:27:45] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npm test 2>&1 → exit 0
+[19:27:45] 🟡 TOKENS: 63062 / 80000 (78%) - approaching limit
+[19:27:59] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && node -e "
+const { Schematic } = require('./src');
+const sch = Schematic.create('Test');
+sch.components.add({
+  libId: 'Device:R',
+  reference: 'R1',
+  value: '10k',
+  position: { x: 100, y: 100 },
+});
+console.log('Components before save:', sch.components.size);
+const tmpPath = '/tmp/test-debug.kicad_sch';
+sch.save(tmpPath);
+const sch2 = Schematic.load(tmpPath);
+console.log('Components after load:', sch2.components.size);
+for (const c of sch2.components) {
+  console.log('Component:', c.reference, c.inBom, c.data.dnp);
+}
+" 2>&1 → exit 0
+[19:28:15] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npx ts-node -e "
+import { Schematic } from './src';
+import { BOMPropertyAuditor } from './src/bom/auditor';
+const sch = Schematic.create('Test');
+sch.components.add({
+  libId: 'Device:R',
+  reference: 'R1',
+  value: '10k',
+  position: { x: 100, y: 100 },
+});
+console.log('Components before save:', sch.components.size);
+const tmpPath = '/tmp/test-debug.kicad_sch';
+sch.save(tmpPath);
+const sch2 = Schematic.load(tmpPath);
+console.log('Components after load:', sch2.components.size);
+for (const c of sch2.components) {
+  console.log('Component:', c.reference, 'inBom:', c.inBom, 'dnp:', c.data?.dnp);
+}
+const auditor = new BOMPropertyAuditor();
+const bom = auditor.generateBOM(tmpPath, false);
+console.log('BOM length:', bom.length);
+console.log('BOM:', bom);
+" 2>&1 → exit 0
+[19:28:15] 🟡 TOKENS: 63083 / 80000 (78%) - approaching limit
+[19:28:28] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npx ts-node -e "
+import { Schematic } from './src';
+import { BOMPropertyAuditor } from './src/bom/auditor';
+const sch = Schematic.create('Test');
+sch.components.add({
+  libId: 'Device:R',
+  reference: 'R1',
+  value: '10k',
+  position: { x: 100, y: 100 },
+});
+console.log('Components before save:', [...sch.components].length);
+const tmpPath = '/tmp/test-debug.kicad_sch';
+sch.save(tmpPath);
+const sch2 = Schematic.load(tmpPath);
+console.log('Components after load:', [...sch2.components].length);
+for (const c of sch2.components) {
+  console.log('Component:', c.reference, 'inBom:', c.inBom, 'dnp:', c.data?.dnp);
+}
+const auditor = new BOMPropertyAuditor();
+const bom = auditor.generateBOM(tmpPath, false);
+console.log('BOM length:', bom.length);
+console.log('BOM:', bom);
+" 2>&1 → exit 0
+[19:28:34] 🟡 SHELL cat /tmp/test-debug.kicad_sch → exit 0
+[19:28:45] 🟡 TOKENS: 63119 / 80000 (78%) - approaching limit
+[19:29:03] 🔴 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/src/core/collections/component.ts (244 lines, ~19.0KB)
+[19:29:15] 🔴 TOKENS: 67999 / 80000 (84%) - approaching limit
+[19:29:27] 🔴 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/src/core/schematic.ts (1048 lines, ~81.8KB)
+[19:29:27] 🔴 ROTATE: Token threshold reached (89013 >= 80000)
+[19:29:42] 🔴 ROTATE: Token threshold reached (89043 >= 80000)
