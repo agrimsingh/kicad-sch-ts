@@ -168,7 +168,7 @@ describe("Label Operations", () => {
 
 describe("Grid Alignment", () => {
   it("should snap to grid", () => {
-    const { snapToGrid } = require("../../src/core/config");
+    const { snapToGrid } = require("../../src/geometry/routing");
 
     const point = snapToGrid({ x: 100.5, y: 101.3 });
     // 100.5 / 1.27 = 79.13 -> round to 79 -> 79 * 1.27 = 100.33
