@@ -143,9 +143,9 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 6. Multi-Unit Components
 
-- [ ] Add multi-unit group helper API (add_all_units behavior).
-- [ ] Fix unit detection in symbol parsing (unit count and names).
-- [ ] Add multi-unit tests and fixtures.
+- [x] Add multi-unit group helper API (add_all_units behavior).
+- [x] Fix unit detection in symbol parsing (unit count and names).
+- [x] Add multi-unit tests and fixtures.
   - Suggested fixtures: `tests/reference_kicad_projects/multi_unit_tl072/*`.
 
 **Targets**

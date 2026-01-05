@@ -4,6 +4,8 @@ import { randomUUID } from "crypto";
 import { BaseCollection, IndexRegistry } from "./base";
 import { SchematicSymbol, Point, PropertyValue } from "../types";
 import { getPropertyPosition } from "../property-positioning";
+import { getSymbolCache, SymbolLibraryCache } from "../../library/cache";
+import { SymbolDefinition } from "../types";
 
 /**
  * Wrapper class for a component that provides a convenient API.
@@ -142,6 +144,37 @@ export class ComponentCollection extends BaseCollection<Component> {
   private referenceIndex: IndexRegistry<Component> = new IndexRegistry();
 
   add(options: AddComponentOptions): Component {
+    return this.addComponent(options, false);
+  }
+
+  addAllUnits(
+    options: AddComponentOptions,
+    symbolCache?: SymbolLibraryCache
+  ): Component[] {
+    const cache = symbolCache || getSymbolCache();
+    const symbol = cache.getSymbol(options.libId);
+    const unitNumbers = this.getUnitNumbers(symbol);
+    const components: Component[] = [];
+
+    unitNumbers.forEach((unitNumber, index) => {
+      components.push(
+        this.addComponent(
+          {
+            ...options,
+            unit: unitNumber,
+          },
+          index > 0
+        )
+      );
+    });
+
+    return components;
+  }
+
+  private addComponent(
+    options: AddComponentOptions,
+    ignoreDuplicateReference: boolean
+  ): Component {
     const uuid = randomUUID();
     const componentRotation = options.rotation || 0;
 
@@ -212,7 +245,15 @@ export class ComponentCollection extends BaseCollection<Component> {
 
     const component = new Component(symbol, this);
     this.addItem(component);
-    this.referenceIndex.addByReference(options.reference, component);
+    if (ignoreDuplicateReference) {
+      try {
+        this.referenceIndex.addByReference(options.reference, component);
+      } catch {
+        // Allow duplicate references for multi-unit components
+      }
+    } else {
+      this.referenceIndex.addByReference(options.reference, component);
+    }
 
     return component;
   }
@@ -246,6 +287,16 @@ export class ComponentCollection extends BaseCollection<Component> {
       // Add new reference
       this.referenceIndex.addByReference(newReference, component);
     }
+  }
+
+  private getUnitNumbers(symbol?: SymbolDefinition): number[] {
+    if (!symbol) return [1];
+    const units = Array.from(symbol.units.keys()).filter((unit) => unit > 0);
+    if (units.length > 0) {
+      return units.sort((a, b) => a - b);
+    }
+    const count = symbol.unitCount || 1;
+    return Array.from({ length: count }, (_, i) => i + 1);
   }
 
   /** Add a component from raw symbol data (used during parsing) */

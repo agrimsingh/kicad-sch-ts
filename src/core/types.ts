@@ -381,6 +381,7 @@ export interface SymbolDefinition {
   pinNamesDefined?: boolean;
   pinNumbers: { hide: boolean };
   pinNumbersDefined?: boolean;
+  unitNames?: Map<number, string>;
   inBom: boolean;
   onBoard: boolean;
   properties: Map<string, PropertyValue>;

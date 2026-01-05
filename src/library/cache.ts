@@ -249,7 +249,7 @@ export class SymbolLibraryCache {
       description: "",
       keywords: "",
       datasheet: "",
-      unitCount: 1,
+      unitCount: 0,
       unitsLocked: false,
       isPower: false,
       pinNames: { offset: 0.508, hide: false },
@@ -258,6 +258,7 @@ export class SymbolLibraryCache {
       onBoard: true,
       properties: new Map(),
       propertyPositions: new Map(),
+      unitNames: new Map(),
       units: new Map(),
     };
 
@@ -300,6 +301,9 @@ export class SymbolLibraryCache {
       }
     }
 
+    if (symbol.unitCount === 0) {
+      symbol.unitCount = 1;
+    }
     return symbol;
   }
 
@@ -374,7 +378,8 @@ export class SymbolLibraryCache {
   private parseSymbolUnit(sexp: unknown[], symbol: SymbolDefinition): void {
     const unitName = sexp[1] as string;
     const parts = unitName.split("_");
-    const unitNumber = parseInt(parts[parts.length - 2]) || 0;
+    const parsedUnit = parseInt(parts[parts.length - 2]);
+    const unitNumber = Number.isNaN(parsedUnit) ? 0 : parsedUnit;
     const style = parseInt(parts[parts.length - 1]) || 1;
 
     if (!symbol.units.has(unitNumber)) {
@@ -398,7 +403,16 @@ export class SymbolLibraryCache {
       }
     }
 
-    symbol.unitCount = Math.max(symbol.unitCount, unitNumber + 1);
+    if (unitNumber > 0) {
+      symbol.unitCount = Math.max(symbol.unitCount, unitNumber);
+      if (symbol.unitNames && !symbol.unitNames.has(unitNumber)) {
+        const name =
+          unitNumber >= 1 && unitNumber <= 26
+            ? String.fromCharCode(64 + unitNumber)
+            : unitNumber.toString();
+        symbol.unitNames.set(unitNumber, name);
+      }
+    }
   }
 
   private parsePin(sexp: unknown[]): SymbolPin {

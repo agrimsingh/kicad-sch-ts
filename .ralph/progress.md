@@ -726,3 +726,12 @@ Completed Part 5 graphics elements.
 
 Tests:
 - npx jest test/integration/graphics.test.ts
+
+### 2026-01-06 03:05:00
+Completed Part 6 multi-unit components.
+- Added unit name tracking and corrected unit count detection.
+- Added addAllUnits helper for multi-unit placement.
+- Added multi-unit integration tests with temp libraries.
+
+Tests:
+- npx jest test/integration/multi-unit.test.ts
