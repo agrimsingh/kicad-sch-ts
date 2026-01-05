@@ -1,11 +1,8 @@
 // src/adapters/mcp/server.ts
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+type McpServerModule = typeof import("@modelcontextprotocol/sdk/server/index.js");
+type McpStdioModule = typeof import("@modelcontextprotocol/sdk/server/stdio.js");
+type McpTypesModule = typeof import("@modelcontextprotocol/sdk/types.js");
 
 import {
   manageSchematicTool,
@@ -60,12 +57,24 @@ const handlers: Record<string, (args: any) => Promise<any>> = {
   discover_pins: handleDiscoverPins,
 };
 
+// Preserve native import() in CommonJS output for ESM-only deps.
+const dynamicImport = async <T>(specifier: string): Promise<T> => {
+  const loader = new Function("specifier", "return import(specifier)");
+  return loader(specifier) as Promise<T>;
+};
+
 export interface McpServerOptions {
   transport: "stdio" | "http";
   port?: number;
 }
 
 export async function startMcpServer(options: McpServerOptions): Promise<void> {
+  const [{ Server }, { StdioServerTransport }, sdkTypes] = await Promise.all([
+    dynamicImport<McpServerModule>("@modelcontextprotocol/sdk/server/index.js"),
+    dynamicImport<McpStdioModule>("@modelcontextprotocol/sdk/server/stdio.js"),
+    dynamicImport<McpTypesModule>("@modelcontextprotocol/sdk/types.js"),
+  ]);
+  const { CallToolRequestSchema, ListToolsRequestSchema } = sdkTypes;
   const logger = createLogger({ name: "mcp-server", level: "info" });
   const server = new Server(
     {
