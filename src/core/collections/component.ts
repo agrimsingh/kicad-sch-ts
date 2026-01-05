@@ -109,6 +109,11 @@ export class Component {
   toSymbol(): SchematicSymbol {
     return this.symbol;
   }
+
+  /** Get the raw symbol data (alias for compatibility) */
+  get data(): SchematicSymbol {
+    return this.symbol;
+  }
 }
 
 export interface AddComponentOptions {
