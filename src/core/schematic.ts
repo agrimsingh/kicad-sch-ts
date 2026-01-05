@@ -16,6 +16,11 @@ import {
   Text,
   TextBox,
   SchematicRectangle,
+  SchematicPolyline,
+  SchematicArc,
+  SchematicCircle,
+  SchematicBezier,
+  SchematicImage,
   Bus,
   BusEntry,
   Sheet,
@@ -45,6 +50,11 @@ import {
   TextCollection,
   TextBoxCollection,
   RectangleCollection,
+  PolylineCollection,
+  ArcCollection,
+  CircleCollection,
+  BezierCollection,
+  ImageCollection,
 } from "./collections";
 
 /**
@@ -78,6 +88,11 @@ export class Schematic {
   public readonly texts: TextCollection;
   public readonly textBoxes: TextBoxCollection;
   public readonly rectangles: RectangleCollection;
+  public readonly polylines: PolylineCollection;
+  public readonly arcs: ArcCollection;
+  public readonly circles: CircleCollection;
+  public readonly beziers: BezierCollection;
+  public readonly images: ImageCollection;
   
   // lib_symbols S-expression (preserved for round-trip)
   private _libSymbolsSexp: SExp[] | null = null;
@@ -106,6 +121,11 @@ export class Schematic {
     this.texts = new TextCollection();
     this.textBoxes = new TextBoxCollection();
     this.rectangles = new RectangleCollection();
+    this.polylines = new PolylineCollection();
+    this.arcs = new ArcCollection();
+    this.circles = new CircleCollection();
+    this.beziers = new BezierCollection();
+    this.images = new ImageCollection();
   }
 
   /**
@@ -229,6 +249,21 @@ export class Schematic {
         case "rectangle":
           this.parseRectangle(item);
           break;
+        case "polyline":
+          this.parsePolyline(item);
+          break;
+        case "arc":
+          this.parseArc(item);
+          break;
+        case "circle":
+          this.parseCircle(item);
+          break;
+        case "bezier":
+          this.parseBezier(item);
+          break;
+        case "image":
+          this.parseImage(item);
+          break;
         case "sheet_instances":
           this._sheetInstancesSexp = item;
           break;
@@ -254,7 +289,12 @@ export class Schematic {
       this.sheets.isModified ||
       this.texts.isModified ||
       this.textBoxes.isModified ||
-      this.rectangles.isModified
+      this.rectangles.isModified ||
+      this.polylines.isModified ||
+      this.arcs.isModified ||
+      this.circles.isModified ||
+      this.beziers.isModified ||
+      this.images.isModified
     );
   }
 
@@ -271,6 +311,11 @@ export class Schematic {
     this.texts.resetModified();
     this.textBoxes.resetModified();
     this.rectangles.resetModified();
+    this.polylines.resetModified();
+    this.arcs.resetModified();
+    this.circles.resetModified();
+    this.beziers.resetModified();
+    this.images.resetModified();
   }
 
   private parseTitleBlock(sexp: SExp[]): void {
@@ -671,6 +716,102 @@ export class Schematic {
     this.rectangles.addFromData(rect);
   }
 
+  private parsePolyline(sexp: SExp[]): void {
+    const pts = findElement(sexp, "pts");
+    const stroke = findElement(sexp, "stroke");
+    const fill = findElement(sexp, "fill");
+    const uuidElem = findElement(sexp, "uuid");
+
+    const polyline: SchematicPolyline = {
+      uuid: uuidElem ? this.getString(uuidElem, 1) || randomUUID() : randomUUID(),
+      points: this.parsePoints(pts),
+      stroke: stroke ? this.parseStroke(stroke) : undefined,
+      fill: fill ? this.parseFill(fill) : undefined,
+    };
+
+    this.polylines.addFromData(polyline);
+  }
+
+  private parseArc(sexp: SExp[]): void {
+    const start = findElement(sexp, "start");
+    const mid = findElement(sexp, "mid");
+    const end = findElement(sexp, "end");
+    const stroke = findElement(sexp, "stroke");
+    const fill = findElement(sexp, "fill");
+    const uuidElem = findElement(sexp, "uuid");
+
+    const arc: SchematicArc = {
+      uuid: uuidElem ? this.getString(uuidElem, 1) || randomUUID() : randomUUID(),
+      start: start ? this.parsePoint(start) : { x: 0, y: 0 },
+      mid: mid ? this.parsePoint(mid) : { x: 0, y: 0 },
+      end: end ? this.parsePoint(end) : { x: 0, y: 0 },
+      stroke: stroke ? this.parseStroke(stroke) : undefined,
+      fill: fill ? this.parseFill(fill) : undefined,
+    };
+
+    this.arcs.addFromData(arc);
+  }
+
+  private parseCircle(sexp: SExp[]): void {
+    const center = findElement(sexp, "center");
+    const radius = findElement(sexp, "radius");
+    const stroke = findElement(sexp, "stroke");
+    const fill = findElement(sexp, "fill");
+    const uuidElem = findElement(sexp, "uuid");
+
+    const circle: SchematicCircle = {
+      uuid: uuidElem ? this.getString(uuidElem, 1) || randomUUID() : randomUUID(),
+      center: center ? this.parsePoint(center) : { x: 0, y: 0 },
+      radius: radius ? this.getNumber(radius, 1) || 0 : 0,
+      stroke: stroke ? this.parseStroke(stroke) : undefined,
+      fill: fill ? this.parseFill(fill) : undefined,
+    };
+
+    this.circles.addFromData(circle);
+  }
+
+  private parseBezier(sexp: SExp[]): void {
+    const pts = findElement(sexp, "pts");
+    const stroke = findElement(sexp, "stroke");
+    const fill = findElement(sexp, "fill");
+    const uuidElem = findElement(sexp, "uuid");
+
+    const bezier: SchematicBezier = {
+      uuid: uuidElem ? this.getString(uuidElem, 1) || randomUUID() : randomUUID(),
+      points: this.parsePoints(pts),
+      stroke: stroke ? this.parseStroke(stroke) : undefined,
+      fill: fill ? this.parseFill(fill) : undefined,
+    };
+
+    this.beziers.addFromData(bezier);
+  }
+
+  private parseImage(sexp: SExp[]): void {
+    const at = findElement(sexp, "at");
+    const scale = findElement(sexp, "scale");
+    const data = findElement(sexp, "data");
+    const uuidElem = findElement(sexp, "uuid");
+
+    const parts: string[] = [];
+    if (data) {
+      for (let i = 1; i < data.length; i++) {
+        const item = data[i];
+        if (typeof item === "string") {
+          parts.push(item);
+        }
+      }
+    }
+
+    const image: SchematicImage = {
+      uuid: uuidElem ? this.getString(uuidElem, 1) || randomUUID() : randomUUID(),
+      position: at ? this.parsePoint(at) : { x: 0, y: 0 },
+      scale: scale ? this.getNumber(scale, 1) || 1 : 1,
+      data: parts.join(""),
+    };
+
+    this.images.addFromData(image);
+  }
+
   // Helper parsing methods
   
   private parsePoints(pts: SExp[] | null): Point[] {
@@ -1061,6 +1202,26 @@ export class Schematic {
       sexp.push(this.buildRectangle(rect));
     }
 
+    for (const polyline of this.polylines) {
+      sexp.push(this.buildPolyline(polyline));
+    }
+
+    for (const arc of this.arcs) {
+      sexp.push(this.buildArc(arc));
+    }
+
+    for (const circle of this.circles) {
+      sexp.push(this.buildCircle(circle));
+    }
+
+    for (const bezier of this.beziers) {
+      sexp.push(this.buildBezier(bezier));
+    }
+
+    for (const image of this.images) {
+      sexp.push(this.buildImage(image));
+    }
+
     if (this._sheetInstancesSexp) {
       sexp.push(this._sheetInstancesSexp);
     } else {
@@ -1347,6 +1508,92 @@ export class Schematic {
     }
 
     sexp.push([new Symbol("uuid"), rect.uuid]);
+    return sexp;
+  }
+
+  private buildPolyline(polyline: SchematicPolyline): SExp[] {
+    const pts: SExp[] = [new Symbol("pts")];
+    for (const pt of polyline.points) {
+      pts.push([new Symbol("xy"), pt.x, pt.y]);
+    }
+
+    const sexp: SExp[] = [new Symbol("polyline"), pts];
+
+    if (polyline.stroke) {
+      sexp.push(this.buildStroke(polyline.stroke));
+    }
+    if (polyline.fill) {
+      sexp.push(this.buildFill(polyline.fill));
+    }
+
+    sexp.push([new Symbol("uuid"), polyline.uuid]);
+    return sexp;
+  }
+
+  private buildArc(arc: SchematicArc): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("arc"),
+      [new Symbol("start"), arc.start.x, arc.start.y],
+      [new Symbol("mid"), arc.mid.x, arc.mid.y],
+      [new Symbol("end"), arc.end.x, arc.end.y],
+    ];
+
+    if (arc.stroke) {
+      sexp.push(this.buildStroke(arc.stroke));
+    }
+    if (arc.fill) {
+      sexp.push(this.buildFill(arc.fill));
+    }
+
+    sexp.push([new Symbol("uuid"), arc.uuid]);
+    return sexp;
+  }
+
+  private buildCircle(circle: SchematicCircle): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("circle"),
+      [new Symbol("center"), circle.center.x, circle.center.y],
+      [new Symbol("radius"), circle.radius],
+    ];
+
+    if (circle.stroke) {
+      sexp.push(this.buildStroke(circle.stroke));
+    }
+    if (circle.fill) {
+      sexp.push(this.buildFill(circle.fill));
+    }
+
+    sexp.push([new Symbol("uuid"), circle.uuid]);
+    return sexp;
+  }
+
+  private buildBezier(bezier: SchematicBezier): SExp[] {
+    const pts: SExp[] = [new Symbol("pts")];
+    for (const pt of bezier.points) {
+      pts.push([new Symbol("xy"), pt.x, pt.y]);
+    }
+
+    const sexp: SExp[] = [new Symbol("bezier"), pts];
+
+    if (bezier.stroke) {
+      sexp.push(this.buildStroke(bezier.stroke));
+    }
+    if (bezier.fill) {
+      sexp.push(this.buildFill(bezier.fill));
+    }
+
+    sexp.push([new Symbol("uuid"), bezier.uuid]);
+    return sexp;
+  }
+
+  private buildImage(image: SchematicImage): SExp[] {
+    const sexp: SExp[] = [
+      new Symbol("image"),
+      [new Symbol("at"), image.position.x, image.position.y],
+      [new Symbol("scale"), image.scale],
+      [new Symbol("data"), image.data],
+      [new Symbol("uuid"), image.uuid],
+    ];
     return sexp;
   }
 

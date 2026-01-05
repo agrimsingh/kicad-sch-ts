@@ -315,6 +315,37 @@ export interface TextBox {
 // Graphics
 // ============================================================
 
+export interface SchematicPolyline {
+  uuid: string;
+  points: Point[];
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
+export interface SchematicArc {
+  uuid: string;
+  start: Point;
+  mid: Point;
+  end: Point;
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
+export interface SchematicCircle {
+  uuid: string;
+  center: Point;
+  radius: number;
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
+export interface SchematicBezier {
+  uuid: string;
+  points: Point[];
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
 export interface SchematicRectangle {
   uuid: string;
   start: Point;

@@ -122,14 +122,14 @@ This task list translates the parity proposal into actionable steps for executio
 
 ## 5. Graphics and Schematic Elements
 
-- [ ] Add parsers/serializers for:
-  - [ ] polyline
-  - [ ] arc
-  - [ ] circle
-  - [ ] bezier
-  - [ ] image
-- [ ] Add collections for new graphics elements where appropriate.
-- [ ] Add tests for graphics round-trip fidelity.
+- [x] Add parsers/serializers for:
+  - [x] polyline
+  - [x] arc
+  - [x] circle
+  - [x] bezier
+  - [x] image
+- [x] Add collections for new graphics elements where appropriate.
+- [x] Add tests for graphics round-trip fidelity.
 
 **Targets**
 - `src/core/schematic.ts`

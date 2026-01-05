@@ -2,7 +2,17 @@
 
 import { randomUUID } from "crypto";
 import { BaseCollection } from "./base";
-import { SchematicRectangle, SchematicImage, Point, Stroke, FillType } from "../types";
+import {
+  SchematicRectangle,
+  SchematicImage,
+  SchematicPolyline,
+  SchematicArc,
+  SchematicCircle,
+  SchematicBezier,
+  Point,
+  Stroke,
+  FillType,
+} from "../types";
 
 export interface AddRectangleOptions {
   start: Point;
@@ -25,6 +35,116 @@ export class RectangleCollection extends BaseCollection<SchematicRectangle> {
 
   addFromData(rect: SchematicRectangle): SchematicRectangle {
     return this.addItem(rect);
+  }
+
+  remove(uuid: string): boolean {
+    return this.removeItem(uuid);
+  }
+}
+
+export interface AddPolylineOptions {
+  points: Point[];
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
+export class PolylineCollection extends BaseCollection<SchematicPolyline> {
+  add(options: AddPolylineOptions): SchematicPolyline {
+    const polyline: SchematicPolyline = {
+      uuid: randomUUID(),
+      points: options.points,
+      stroke: options.stroke,
+      fill: options.fill,
+    };
+    return this.addItem(polyline);
+  }
+
+  addFromData(polyline: SchematicPolyline): SchematicPolyline {
+    return this.addItem(polyline);
+  }
+
+  remove(uuid: string): boolean {
+    return this.removeItem(uuid);
+  }
+}
+
+export interface AddArcOptions {
+  start: Point;
+  mid: Point;
+  end: Point;
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
+export class ArcCollection extends BaseCollection<SchematicArc> {
+  add(options: AddArcOptions): SchematicArc {
+    const arc: SchematicArc = {
+      uuid: randomUUID(),
+      start: options.start,
+      mid: options.mid,
+      end: options.end,
+      stroke: options.stroke,
+      fill: options.fill,
+    };
+    return this.addItem(arc);
+  }
+
+  addFromData(arc: SchematicArc): SchematicArc {
+    return this.addItem(arc);
+  }
+
+  remove(uuid: string): boolean {
+    return this.removeItem(uuid);
+  }
+}
+
+export interface AddCircleOptions {
+  center: Point;
+  radius: number;
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
+export class CircleCollection extends BaseCollection<SchematicCircle> {
+  add(options: AddCircleOptions): SchematicCircle {
+    const circle: SchematicCircle = {
+      uuid: randomUUID(),
+      center: options.center,
+      radius: options.radius,
+      stroke: options.stroke,
+      fill: options.fill,
+    };
+    return this.addItem(circle);
+  }
+
+  addFromData(circle: SchematicCircle): SchematicCircle {
+    return this.addItem(circle);
+  }
+
+  remove(uuid: string): boolean {
+    return this.removeItem(uuid);
+  }
+}
+
+export interface AddBezierOptions {
+  points: Point[];
+  stroke?: Stroke;
+  fill?: { type: FillType; color?: [number, number, number, number] };
+}
+
+export class BezierCollection extends BaseCollection<SchematicBezier> {
+  add(options: AddBezierOptions): SchematicBezier {
+    const bezier: SchematicBezier = {
+      uuid: randomUUID(),
+      points: options.points,
+      stroke: options.stroke,
+      fill: options.fill,
+    };
+    return this.addItem(bezier);
+  }
+
+  addFromData(bezier: SchematicBezier): SchematicBezier {
+    return this.addItem(bezier);
   }
 
   remove(uuid: string): boolean {
