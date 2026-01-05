@@ -389,3 +389,8 @@ Ralph Session Started: Mon Jan  5 19:18:01 +08 2026
 [19:24:23] 🟡 TOKENS: 53844 / 80000 (67%)
 [19:24:50] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npx jest test/integration/connectivity.test.ts --no-coverage 2>&1 | head -60 → exit 0
 [19:24:53] 🟡 TOKENS: 53844 / 80000 (67%)
+[19:25:40] 🟡 SHELL cd /Users/agrim/Downloads/niyam/kicad-sch-ts && npx jest test/integration/hierarchy.test.ts test/integration/bom.test.ts test/integration/exporter.test.ts test/integration/discovery.test.ts --no-coverage 2>&1 → exit 0
+[19:25:40] 🟡 TOKENS: 53844 / 80000 (67%)
+[19:25:47] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/test/integration/bom.test.ts (126 lines, ~9.8KB)
+[19:25:48] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/src/bom/auditor.ts (206 lines, ~16.0KB)
+[19:25:59] 🟡 READ /Users/agrim/Downloads/niyam/kicad-sch-ts/test/integration/bom.test.ts (126 lines, ~9.8KB)
