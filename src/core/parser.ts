@@ -18,7 +18,23 @@ export class Symbol {
   }
 }
 
-export type SExp = Symbol | string | number | boolean | SExp[];
+/**
+ * Represents a floating-point number that preserves its original format.
+ * Used to distinguish between integers (like 0) and floats (like 0.0000).
+ */
+export class Float {
+  constructor(public readonly value: number, public readonly originalStr: string) {}
+
+  toString(): string {
+    return this.originalStr;
+  }
+
+  valueOf(): number {
+    return this.value;
+  }
+}
+
+export type SExp = Symbol | string | number | Float | boolean | SExp[];
 
 // Token types
 type Token =
@@ -252,7 +268,7 @@ export class SExpressionParser {
     return new Symbol(token);
   }
 
-  private tryParseNumber(token: string): number | null {
+  private tryParseNumber(token: string): number | Float | null {
     // Handle integers
     if (/^-?\d+$/.test(token)) {
       return parseInt(token, 10);
@@ -260,7 +276,8 @@ export class SExpressionParser {
 
     // Handle floats (including scientific notation)
     if (/^-?\d*\.?\d+([eE][+-]?\d+)?$/.test(token)) {
-      return parseFloat(token);
+      // Wrap in Float to preserve original formatting
+      return new Float(parseFloat(token), token);
     }
 
     return null;
@@ -271,6 +288,10 @@ export class SExpressionParser {
 
 export function isSymbol(sexp: SExp): sexp is Symbol {
   return sexp instanceof Symbol;
+}
+
+export function isFloat(sexp: SExp): sexp is Float {
+  return sexp instanceof Float;
 }
 
 export function isList(sexp: SExp): sexp is SExp[] {

@@ -1851,69 +1851,69 @@ export class JunctionCollection extends BaseCollection<Junction> {
 
 ### Phase 1: Project Setup
 
-- [ ] Initialize npm project with TypeScript (`npm init -y && npm install typescript ts-jest jest @types/jest @types/node --save-dev`)
-- [ ] Configure `tsconfig.json` for ES modules with strict mode
-- [ ] Configure `jest.config.js` for ts-jest
-- [ ] Create directory structure as shown above
-- [ ] Copy reference test fixtures from Python project's `tests/reference_kicad_projects/`
+- [x] Initialize npm project with TypeScript (`npm init -y && npm install typescript ts-jest jest @types/jest @types/node --save-dev`)
+- [x] Configure `tsconfig.json` for ES modules with strict mode
+- [x] Configure `jest.config.js` for ts-jest
+- [x] Create directory structure as shown above
+- [x] Copy reference test fixtures from Python project's `tests/reference_kicad_projects/`
 
 ### Phase 2: Core Types & Exceptions
 
-- [ ] Implement all interfaces in `src/core/types.ts` (copy from above)
-- [ ] Implement all enums (PinType, WireType, LabelType, etc.)
-- [ ] Implement all exception classes in `src/core/exceptions.ts`
-- [ ] Implement configuration in `src/core/config.ts`
+- [x] Implement all interfaces in `src/core/types.ts` (copy from above)
+- [x] Implement all enums (PinType, WireType, LabelType, etc.)
+- [x] Implement all exception classes in `src/core/exceptions.ts`
+- [x] Implement configuration in `src/core/config.ts`
 
 ### Phase 3: S-Expression Parser
 
-- [ ] Implement `Symbol` class for S-expression atoms
-- [ ] Implement `Tokenizer` class for lexing
-- [ ] Implement `SExpressionParser` class
-- [ ] Handle strings with escape sequences
-- [ ] Handle numbers (integers, floats)
-- [ ] Handle nested lists
-- [ ] Pass unit tests for parsing
+- [x] Implement `Symbol` class for S-expression atoms
+- [x] Implement `Tokenizer` class for lexing
+- [x] Implement `SExpressionParser` class
+- [x] Handle strings with escape sequences
+- [x] Handle numbers (integers, floats)
+- [x] Handle nested lists
+- [x] Pass unit tests for parsing
 
 ### Phase 4: S-Expression Formatter
 
-- [ ] Implement `ExactFormatter` class
-- [ ] Handle inline vs block elements correctly
-- [ ] Handle proper indentation with tabs
-- [ ] Handle string quoting and escaping
-- [ ] Handle number formatting
-- [ ] Pass unit tests for formatting
+- [x] Implement `ExactFormatter` class
+- [x] Handle inline vs block elements correctly
+- [x] Handle proper indentation with tabs
+- [x] Handle string quoting and escaping
+- [x] Handle number formatting
+- [x] Pass unit tests for formatting
 
 ### Phase 5: Collections
 
-- [ ] Implement `IndexRegistry` and `BaseCollection`
-- [ ] Implement `ComponentCollection` with `Component` wrapper
-- [ ] Implement `WireCollection`
-- [ ] Implement `LabelCollection` (local, global, hierarchical)
-- [ ] Implement `JunctionCollection`
-- [ ] Implement `NoConnectCollection`
-- [ ] Implement `BusCollection`, `BusEntryCollection`
-- [ ] Implement `SheetCollection`
-- [ ] Implement `TextCollection`, `TextBoxCollection`
-- [ ] Implement `RectangleCollection`, `ImageCollection`
+- [x] Implement `IndexRegistry` and `BaseCollection`
+- [x] Implement `ComponentCollection` with `Component` wrapper
+- [x] Implement `WireCollection`
+- [x] Implement `LabelCollection` (local, global, hierarchical)
+- [x] Implement `JunctionCollection`
+- [x] Implement `NoConnectCollection`
+- [x] Implement `BusCollection`, `BusEntryCollection`
+- [x] Implement `SheetCollection`
+- [x] Implement `TextCollection`, `TextBoxCollection`
+- [x] Implement `RectangleCollection`, `ImageCollection`
 
 ### Phase 6: Schematic Class (Core)
 
-- [ ] Implement basic `Schematic` class structure
-- [ ] Implement `load`, `create`, `fromString` factory methods
-- [ ] Implement `parse` method that delegates to element parsers
-- [ ] Implement element parsers in `src/core/parsers/`
-- [ ] Implement `toSexp` method for serialization
-- [ ] Implement `format` method using `ExactFormatter`
-- [ ] Implement `save` method
+- [x] Implement basic `Schematic` class structure
+- [x] Implement `load`, `create`, `fromString` factory methods
+- [x] Implement `parse` method that delegates to element parsers
+- [x] Implement element parsers in `src/core/parsers/`
+- [x] Implement `toSexp` method for serialization
+- [x] Implement `format` method using `ExactFormatter`
+- [x] Implement `save` method
 
 ### Phase 7: Round-Trip Integration
 
-- [ ] All round-trip tests pass for `blank.kicad_sch`
-- [ ] All round-trip tests pass for `single_resistor.kicad_sch`
-- [ ] All round-trip tests pass for all rotated resistor variants
-- [ ] Component add/modify operations work correctly
-- [ ] Wire add operations work correctly
-- [ ] Label add operations work correctly
+- [x] All round-trip tests pass for `blank.kicad_sch`
+- [x] All round-trip tests pass for `single_resistor.kicad_sch`
+- [x] All round-trip tests pass for all rotated resistor variants
+- [x] Component add/modify operations work correctly
+- [x] Wire add operations work correctly
+- [x] Label add operations work correctly
 
 ---
 

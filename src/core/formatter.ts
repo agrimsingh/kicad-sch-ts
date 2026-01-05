@@ -1,6 +1,6 @@
 // src/core/formatter.ts
 
-import { Symbol, SExp, isSymbol, isList, getTag } from "./parser";
+import { Symbol, SExp, isSymbol, isList, isFloat, getTag, Float } from "./parser";
 import { FormatError } from "./exceptions";
 
 /**
