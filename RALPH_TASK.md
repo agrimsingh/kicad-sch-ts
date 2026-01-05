@@ -1,2126 +1,1491 @@
 ---
-task: "Port kicad-sch-api to TypeScript - Part 1: Core Engine"
+task: "Port kicad-sch-api to TypeScript - Part 2: Library & Analysis"
 test_command: "npm test"
 completion_criteria:
-  - Core S-expression parser and formatter working with exact format preservation
-  - All data models (types, exceptions, config) ported from Python to TypeScript
-  - All collection classes (components, wires, labels, etc.) implemented
-  - Basic Schematic class can load, parse, format, and save any .kicad_sch file
-  - All round-trip tests for reference files pass with byte-for-byte identity
+  - Symbol Library Cache can discover, parse, and search all KiCAD libraries
+  - Geometry module can calculate bounding boxes and create orthogonal routes
+  - Connectivity analysis can identify nets and check pin connections
+  - Hierarchy management can build a tree and validate sheet pins
+  - Validation/ERC system can detect common errors
+  - BOM and Discovery modules are fully functional
+  - Python code exporter can generate valid code
+  - All analysis-related tests pass
 max_iterations: 150
 ---
 
-# Task: Port `kicad-sch-api` to TypeScript - Part 1: Core Engine
+# Task: Port `kicad-sch-api` to TypeScript - Part 2: Library & Analysis
 
-This is **Part 1 of 3** of a project to faithfully port the Python library `kicad-sch-api` to TypeScript. This part focuses on building the **Core Engine**: a robust foundation that can parse, represent, and format KiCAD schematic files with perfect fidelity.
+This is **Part 2 of 3**. This part builds upon the Core Engine from Part 1 to add library management, geometry calculations, connectivity analysis, validation, and export capabilities.
 
-## The One-Line Success Criterion for Part 1
+## Prerequisite
 
-For any KiCAD schematic, the library must be able to read it into a set of TypeScript objects and write it back to a `.kicad_sch` file that is **byte-for-byte identical** to the original.
+**Part 1 must be complete.** The Core Engine must be able to parse and format schematics with perfect fidelity before starting this part. Verify by running `npm test` and ensuring all round-trip tests pass.
+
+## The One-Line Success Criterion for Part 2
+
+The library must be able to perform complex analysis on any loaded schematic, including full Electrical Rules Checking (ERC), connectivity tracing, hierarchy validation, and Bill of Materials (BOM) auditing.
 
 ---
 
 ## Source Reference
 
-The Python source code is located at: `https://github.com/circuit-synth/kicad-sch-api`
+Key Python files for Part 2:
 
-Clone it locally and use it as the authoritative reference:
-
-```bash
-git clone https://github.com/circuit-synth/kicad-sch-api.git
-```
-
-Key Python files for Part 1:
-
-- `kicad_sch_api/core/types.py` (~1215 lines)
-- `kicad_sch_api/core/parser.py` (~1033 lines)
-- `kicad_sch_api/core/formatter.py` (~1105 lines)
-- `kicad_sch_api/core/exceptions.py` (~145 lines)
-- `kicad_sch_api/core/config.py` (~314 lines)
-- `kicad_sch_api/core/schematic.py` (~2107 lines)
-- `kicad_sch_api/core/collections/` (~2000 lines total)
+- `kicad_sch_api/library/cache.py` (~1430 lines)
+- `kicad_sch_api/geometry/routing.py` (~202 lines)
+- `kicad_sch_api/geometry/symbol_bbox.py` (~608 lines)
+- `kicad_sch_api/validation/erc.py` (~167 lines)
+- `kicad_sch_api/validation/pin_matrix.py` (~242 lines)
+- `kicad_sch_api/bom/auditor.py` (~297 lines)
+- `kicad_sch_api/discovery/search_index.py` (~456 lines)
+- `kicad_sch_api/exporters/python_generator.py` (~607 lines)
+- `kicad_sch_api/core/managers/hierarchy.py` (~662 lines)
 
 ---
 
-## ⚠️ CRITICAL: KiCAD Coordinate System
+## File Structure (Part 2 Additions)
 
-KiCAD uses TWO different coordinate systems. Understanding this is essential for correct implementation.
+```
+kicad-sch-ts/
+├── src/
+│   ├── library/
+│   │   ├── cache.ts              # SymbolLibraryCache
+│   │   └── index.ts
+│   ├── geometry/
+│   │   ├── routing.ts            # Orthogonal routing
+│   │   ├── symbol-bbox.ts        # Bounding box calculations
+│   │   ├── font-metrics.ts       # Font/text metrics constants
+│   │   └── index.ts
+│   ├── connectivity/
+│   │   ├── analyzer.ts           # Net analysis
+│   │   └── index.ts
+│   ├── validation/
+│   │   ├── erc-models.ts         # ERC types
+│   │   ├── pin-matrix.ts         # Pin conflict matrix
+│   │   ├── erc.ts                # ElectricalRulesChecker
+│   │   └── index.ts
+│   ├── bom/
+│   │   ├── auditor.ts            # BOMPropertyAuditor
+│   │   ├── matcher.ts            # PropertyMatcher
+│   │   └── index.ts
+│   ├── discovery/
+│   │   ├── search-index.ts       # SQLite-based search
+│   │   └── index.ts
+│   ├── exporters/
+│   │   ├── python-generator.ts   # PythonCodeGenerator
+│   │   └── index.ts
+│   └── core/
+│       └── managers/
+│           ├── hierarchy.ts      # HierarchyManager (ADD)
+│           ├── wire.ts           # WireManager (ADD)
+│           └── index.ts
+└── test/
+    └── integration/
+        ├── library.test.ts
+        ├── geometry.test.ts
+        ├── connectivity.test.ts
+        ├── erc.test.ts
+        └── bom.test.ts
+```
 
-| System              | Y-Axis Direction      | Where Used                                       |
-| ------------------- | --------------------- | ------------------------------------------------ |
-| **Symbol Space**    | +Y is UP (normal)     | Library symbol definitions (`.kicad_sym` files)  |
-| **Schematic Space** | +Y is DOWN (inverted) | Placed components, wires, labels in `.kicad_sch` |
+---
 
-**The Y-Negation Rule:** When transforming from symbol space to schematic space, Y coordinates MUST be negated:
+## Additional Dependencies (Part 2)
 
-```typescript
-// CORRECT transformation
-function transformPinToSchematic(
-  pinPos: Point,
-  componentPos: Point,
-  rotation: number = 0,
-  mirror?: "x" | "y"
-): Point {
-  // Step 1: Negate Y (symbol space -> schematic space)
-  let x = pinPos.x;
-  let y = -pinPos.y; // CRITICAL: Y-negation
+Add these to `package.json`:
 
-  // Step 2: Apply mirror if present
-  if (mirror === "x") x = -x;
-  if (mirror === "y") y = -y;
-
-  // Step 3: Apply rotation
-  const rad = (rotation * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const rotX = x * cos - y * sin;
-  const rotY = x * sin + y * cos;
-
-  // Step 4: Translate to component position
-  return {
-    x: componentPos.x + rotX,
-    y: componentPos.y + rotY,
-  };
+```json
+{
+  "dependencies": {
+    "better-sqlite3": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.5"
+  }
 }
 ```
 
-**Grid Alignment:** ALL positions MUST be on a 1.27mm (50 mil) grid:
+---
+
+## Symbol Library Cache (`src/library/cache.ts`)
+
+Port from `kicad_sch_api/library/cache.py`. This provides access to KiCAD's symbol libraries.
 
 ```typescript
+// src/library/cache.ts
+
+import { existsSync, readdirSync, readFileSync } from "fs";
+import { join, basename } from "path";
+import { homedir } from "os";
+import { SExpressionParser, Symbol as SSymbol } from "../core/parser";
+import {
+  SymbolDefinition,
+  SymbolUnit,
+  SymbolPin,
+  PinType,
+  PinShape,
+  Point,
+} from "../core/types";
+import { LibraryError } from "../core/exceptions";
+
+export interface LibraryStats {
+  symbolCount: number;
+  loadTime: number;
+  lastAccessed: number;
+}
+
+export class SymbolLibraryCache {
+  private symbolCache: Map<string, SymbolDefinition> = new Map();
+  private libraryIndex: Map<string, string[]> = new Map();
+  private libraryPaths: string[] = [];
+  private libStats: Map<string, LibraryStats> = new Map();
+  private parser: SExpressionParser = new SExpressionParser();
+
+  constructor() {
+    this.discoverLibraryPaths();
+  }
+
+  /**
+   * Discover KiCAD library paths from environment and standard locations.
+   */
+  private discoverLibraryPaths(): void {
+    const paths: string[] = [];
+
+    // Check environment variables
+    const envVars = [
+      "KICAD_SYMBOL_DIR",
+      "KICAD8_SYMBOL_DIR",
+      "KICAD7_SYMBOL_DIR",
+    ];
+    for (const envVar of envVars) {
+      const path = process.env[envVar];
+      if (path && existsSync(path)) {
+        paths.push(path);
+      }
+    }
+
+    // Standard locations by platform
+    const platform = process.platform;
+    const standardPaths: string[] = [];
+
+    if (platform === "darwin") {
+      standardPaths.push(
+        "/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols",
+        join(homedir(), "Library/Application Support/kicad/8.0/symbols"),
+        join(homedir(), "Library/Application Support/kicad/7.0/symbols")
+      );
+    } else if (platform === "win32") {
+      standardPaths.push(
+        "C:\\Program Files\\KiCad\\8.0\\share\\kicad\\symbols",
+        "C:\\Program Files\\KiCad\\7.0\\share\\kicad\\symbols"
+      );
+    } else {
+      // Linux
+      standardPaths.push(
+        "/usr/share/kicad/symbols",
+        "/usr/local/share/kicad/symbols",
+        join(homedir(), ".local/share/kicad/8.0/symbols"),
+        join(homedir(), ".local/share/kicad/7.0/symbols")
+      );
+    }
+
+    for (const path of standardPaths) {
+      if (existsSync(path) && !paths.includes(path)) {
+        paths.push(path);
+      }
+    }
+
+    this.libraryPaths = paths;
+  }
+
+  /**
+   * Add a custom library path.
+   */
+  addLibraryPath(path: string): void {
+    if (existsSync(path) && !this.libraryPaths.includes(path)) {
+      this.libraryPaths.push(path);
+    }
+  }
+
+  /**
+   * Get all available library names.
+   */
+  getLibraryNames(): string[] {
+    const names = new Set<string>();
+
+    for (const libPath of this.libraryPaths) {
+      try {
+        const files = readdirSync(libPath);
+        for (const file of files) {
+          if (file.endsWith(".kicad_sym")) {
+            names.add(basename(file, ".kicad_sym"));
+          }
+        }
+      } catch (e) {
+        // Directory not readable
+      }
+    }
+
+    return Array.from(names).sort();
+  }
+
+  /**
+   * Get a symbol by lib_id (e.g., "Device:R").
+   */
+  getSymbol(libId: string): SymbolDefinition | undefined {
+    if (this.symbolCache.has(libId)) {
+      return this.symbolCache.get(libId);
+    }
+
+    const [libraryName, symbolName] = libId.split(":");
+    if (!libraryName || !symbolName) {
+      return undefined;
+    }
+
+    if (!this.libraryIndex.has(libraryName)) {
+      this.loadLibrary(libraryName);
+    }
+
+    return this.symbolCache.get(libId);
+  }
+
+  /**
+   * Load a library file and cache all its symbols.
+   */
+  private loadLibrary(libraryName: string): void {
+    const startTime = Date.now();
+    const filename = `${libraryName}.kicad_sym`;
+
+    for (const libPath of this.libraryPaths) {
+      const fullPath = join(libPath, filename);
+      if (existsSync(fullPath)) {
+        try {
+          const content = readFileSync(fullPath, "utf-8");
+          const symbols = this.parseLibraryFile(content, libraryName);
+
+          const symbolNames: string[] = [];
+          for (const symbol of symbols) {
+            const libId = `${libraryName}:${symbol.name}`;
+            symbol.libId = libId;
+            symbol.library = libraryName;
+            this.symbolCache.set(libId, symbol);
+            symbolNames.push(symbol.name);
+          }
+
+          this.libraryIndex.set(libraryName, symbolNames);
+          this.libStats.set(libraryName, {
+            symbolCount: symbols.length,
+            loadTime: Date.now() - startTime,
+            lastAccessed: Date.now(),
+          });
+
+          return;
+        } catch (e) {
+          console.error(`Error loading library ${libraryName}:`, e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Parse a .kicad_sym library file.
+   */
+  private parseLibraryFile(
+    content: string,
+    libraryName: string
+  ): SymbolDefinition[] {
+    const sexp = this.parser.parse(content) as any[];
+
+    if (
+      !Array.isArray(sexp) ||
+      !(sexp[0] instanceof SSymbol) ||
+      sexp[0].name !== "kicad_symbol_lib"
+    ) {
+      throw new LibraryError("Invalid symbol library file");
+    }
+
+    const symbols: SymbolDefinition[] = [];
+
+    for (let i = 1; i < sexp.length; i++) {
+      const item = sexp[i];
+      if (
+        Array.isArray(item) &&
+        item[0] instanceof SSymbol &&
+        item[0].name === "symbol"
+      ) {
+        const symbol = this.parseSymbolDefinition(item, libraryName);
+        symbols.push(symbol);
+      }
+    }
+
+    return symbols;
+  }
+
+  /**
+   * Parse a symbol definition from S-expression.
+   */
+  private parseSymbolDefinition(
+    sexp: any[],
+    libraryName: string
+  ): SymbolDefinition {
+    const name = sexp[1] as string;
+
+    const symbol: SymbolDefinition = {
+      libId: `${libraryName}:${name}`,
+      name,
+      library: libraryName,
+      referencePrefix: "U",
+      description: "",
+      keywords: "",
+      datasheet: "",
+      unitCount: 1,
+      unitsLocked: false,
+      isPower: false,
+      pinNames: { offset: 0.508, hide: false },
+      pinNumbers: { hide: false },
+      inBom: true,
+      onBoard: true,
+      properties: new Map(),
+      units: new Map(),
+    };
+
+    for (let i = 2; i < sexp.length; i++) {
+      const item = sexp[i];
+      if (!Array.isArray(item) || !(item[0] instanceof SSymbol)) continue;
+
+      const tag = item[0].name;
+      switch (tag) {
+        case "property":
+          this.parseSymbolProperty(item, symbol);
+          break;
+        case "power":
+          symbol.isPower = true;
+          break;
+        case "pin_names":
+          this.parsePinNames(item, symbol);
+          break;
+        case "pin_numbers":
+          if (
+            item.some((x: any) => x instanceof SSymbol && x.name === "hide")
+          ) {
+            symbol.pinNumbers.hide = true;
+          }
+          break;
+        case "in_bom":
+          symbol.inBom = item[1] === "yes" || item[1] === true;
+          break;
+        case "on_board":
+          symbol.onBoard = item[1] === "yes" || item[1] === true;
+          break;
+        case "symbol":
+          this.parseSymbolUnit(item, symbol);
+          break;
+      }
+    }
+
+    return symbol;
+  }
+
+  private parseSymbolProperty(sexp: any[], symbol: SymbolDefinition): void {
+    const name = sexp[1] as string;
+    const value = sexp[2] as string;
+
+    switch (name) {
+      case "Reference":
+        symbol.referencePrefix = value.replace(/[0-9]/g, "");
+        break;
+      case "ki_description":
+        symbol.description = value;
+        break;
+      case "ki_keywords":
+        symbol.keywords = value;
+        break;
+      case "Datasheet":
+        symbol.datasheet = value;
+        break;
+    }
+
+    symbol.properties.set(name, {
+      value,
+      position: { x: 0, y: 0 },
+      rotation: 0,
+    });
+  }
+
+  private parsePinNames(sexp: any[], symbol: SymbolDefinition): void {
+    for (let i = 1; i < sexp.length; i++) {
+      const item = sexp[i];
+      if (
+        Array.isArray(item) &&
+        item[0] instanceof SSymbol &&
+        item[0].name === "offset"
+      ) {
+        symbol.pinNames.offset = item[1] as number;
+      } else if (item instanceof SSymbol && item.name === "hide") {
+        symbol.pinNames.hide = true;
+      }
+    }
+  }
+
+  private parseSymbolUnit(sexp: any[], symbol: SymbolDefinition): void {
+    const unitName = sexp[1] as string;
+    const parts = unitName.split("_");
+    const unitNumber = parseInt(parts[parts.length - 2]) || 0;
+    const style = parseInt(parts[parts.length - 1]) || 1;
+
+    if (!symbol.units.has(unitNumber)) {
+      symbol.units.set(unitNumber, {
+        unitNumber,
+        style,
+        graphics: [],
+        pins: [],
+      });
+    }
+
+    const unit = symbol.units.get(unitNumber)!;
+
+    for (let i = 2; i < sexp.length; i++) {
+      const item = sexp[i];
+      if (!Array.isArray(item) || !(item[0] instanceof SSymbol)) continue;
+
+      const tag = item[0].name;
+      if (tag === "pin") {
+        unit.pins.push(this.parsePin(item));
+      }
+    }
+
+    symbol.unitCount = Math.max(symbol.unitCount, unitNumber + 1);
+  }
+
+  private parsePin(sexp: any[]): SymbolPin {
+    const electricalType = sexp[1] as string;
+    const graphicStyle = sexp[2] as string;
+
+    const pin: SymbolPin = {
+      number: "",
+      name: "",
+      position: { x: 0, y: 0 },
+      length: 2.54,
+      rotation: 0,
+      electricalType: electricalType as PinType,
+      graphicStyle: graphicStyle as PinShape,
+      hide: false,
+      alternate: [],
+    };
+
+    for (let i = 3; i < sexp.length; i++) {
+      const item = sexp[i];
+      if (!Array.isArray(item) || !(item[0] instanceof SSymbol)) continue;
+
+      const tag = item[0].name;
+      switch (tag) {
+        case "at":
+          pin.position = { x: item[1] as number, y: item[2] as number };
+          pin.rotation = (item[3] as number) || 0;
+          break;
+        case "length":
+          pin.length = item[1] as number;
+          break;
+        case "name":
+          pin.name = item[1] as string;
+          break;
+        case "number":
+          pin.number = item[1] as string;
+          break;
+        case "hide":
+          pin.hide = true;
+          break;
+      }
+    }
+
+    return pin;
+  }
+
+  /**
+   * Search for symbols by name or keywords.
+   */
+  searchSymbols(query: string, limit: number = 50): SymbolDefinition[] {
+    const results: SymbolDefinition[] = [];
+    const queryLower = query.toLowerCase();
+
+    for (const libName of this.getLibraryNames()) {
+      if (!this.libraryIndex.has(libName)) {
+        this.loadLibrary(libName);
+      }
+    }
+
+    for (const symbol of this.symbolCache.values()) {
+      if (results.length >= limit) break;
+
+      const nameMatch = symbol.name.toLowerCase().includes(queryLower);
+      const descMatch = symbol.description.toLowerCase().includes(queryLower);
+      const keywordMatch = symbol.keywords.toLowerCase().includes(queryLower);
+
+      if (nameMatch || descMatch || keywordMatch) {
+        results.push(symbol);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get all symbols in a library.
+   */
+  getLibrarySymbols(libraryName: string): SymbolDefinition[] {
+    if (!this.libraryIndex.has(libraryName)) {
+      this.loadLibrary(libraryName);
+    }
+
+    const symbolNames = this.libraryIndex.get(libraryName) || [];
+    return symbolNames
+      .map((name) => this.symbolCache.get(`${libraryName}:${name}`))
+      .filter(Boolean) as SymbolDefinition[];
+  }
+
+  getPerformanceStats(): {
+    totalSymbolsCached: number;
+    totalLibrariesLoaded: number;
+    libraryStats: Map<string, LibraryStats>;
+  } {
+    return {
+      totalSymbolsCached: this.symbolCache.size,
+      totalLibrariesLoaded: this.libraryIndex.size,
+      libraryStats: this.libStats,
+    };
+  }
+}
+
+// Global cache instance
+let globalCache: SymbolLibraryCache | undefined;
+
+export function getSymbolCache(): SymbolLibraryCache {
+  if (!globalCache) {
+    globalCache = new SymbolLibraryCache();
+  }
+  return globalCache;
+}
+
+export function getSymbolInfo(libId: string): SymbolDefinition | undefined {
+  return getSymbolCache().getSymbol(libId);
+}
+
+export function searchSymbols(
+  query: string,
+  limit?: number
+): SymbolDefinition[] {
+  return getSymbolCache().searchSymbols(query, limit);
+}
+```
+
+---
+
+## Geometry: Routing (`src/geometry/routing.ts`)
+
+```typescript
+// src/geometry/routing.ts
+
+import { Point } from "../core/types";
+
 const GRID_SIZE = 1.27;
 
-function snapToGrid(point: Point): Point {
+export function snapToGrid(point: Point): Point {
   return {
     x: Math.round(point.x / GRID_SIZE) * GRID_SIZE,
     y: Math.round(point.y / GRID_SIZE) * GRID_SIZE,
   };
 }
 
-function isOnGrid(point: Point): boolean {
-  const snapped = snapToGrid(point);
-  return (
-    Math.abs(point.x - snapped.x) < 0.001 &&
-    Math.abs(point.y - snapped.y) < 0.001
+export enum CornerDirection {
+  AUTO = "auto",
+  HORIZONTAL_FIRST = "horizontal_first",
+  VERTICAL_FIRST = "vertical_first",
+}
+
+export interface RoutingResult {
+  segments: Array<{ start: Point; end: Point }>;
+  corner?: Point;
+  isDirectRoute: boolean;
+}
+
+/**
+ * Create orthogonal (Manhattan) routing between two points.
+ *
+ * CRITICAL: Remember KiCAD Y-axis is INVERTED in schematic space.
+ */
+export function createOrthogonalRouting(
+  fromPos: Point,
+  toPos: Point,
+  cornerDirection: CornerDirection = CornerDirection.AUTO
+): RoutingResult {
+  const dx = toPos.x - fromPos.x;
+  const dy = toPos.y - fromPos.y;
+
+  // Check for direct routing (aligned on same axis)
+  if (Math.abs(dx) < 0.01) {
+    return {
+      segments: [{ start: fromPos, end: toPos }],
+      isDirectRoute: true,
+    };
+  }
+
+  if (Math.abs(dy) < 0.01) {
+    return {
+      segments: [{ start: fromPos, end: toPos }],
+      isDirectRoute: true,
+    };
+  }
+
+  // Need L-shaped routing
+  let corner: Point;
+
+  if (cornerDirection === CornerDirection.AUTO) {
+    cornerDirection =
+      Math.abs(dx) >= Math.abs(dy)
+        ? CornerDirection.HORIZONTAL_FIRST
+        : CornerDirection.VERTICAL_FIRST;
+  }
+
+  if (cornerDirection === CornerDirection.HORIZONTAL_FIRST) {
+    corner = { x: toPos.x, y: fromPos.y };
+  } else {
+    corner = { x: fromPos.x, y: toPos.y };
+  }
+
+  corner = snapToGrid(corner);
+
+  return {
+    segments: [
+      { start: fromPos, end: corner },
+      { start: corner, end: toPos },
+    ],
+    corner,
+    isDirectRoute: false,
+  };
+}
+
+export function validateRoutingResult(result: RoutingResult): boolean {
+  if (result.segments.length === 0) return false;
+
+  for (let i = 0; i < result.segments.length - 1; i++) {
+    const end = result.segments[i].end;
+    const nextStart = result.segments[i + 1].start;
+
+    if (
+      Math.abs(end.x - nextStart.x) > 0.01 ||
+      Math.abs(end.y - nextStart.y) > 0.01
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+```
+
+---
+
+## Geometry: Bounding Box (`src/geometry/symbol-bbox.ts`)
+
+```typescript
+// src/geometry/symbol-bbox.ts
+
+import { Point, SymbolDefinition, SymbolPin } from "../core/types";
+import { Component } from "../core/collections/component";
+import { SymbolLibraryCache } from "../library/cache";
+
+export interface BoundingBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export function createBoundingBox(
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number
+): BoundingBox {
+  return { minX, minY, maxX, maxY };
+}
+
+export function getBoundingBoxWidth(bbox: BoundingBox): number {
+  return bbox.maxX - bbox.minX;
+}
+
+export function getBoundingBoxHeight(bbox: BoundingBox): number {
+  return bbox.maxY - bbox.minY;
+}
+
+export function getBoundingBoxCenter(bbox: BoundingBox): Point {
+  return {
+    x: (bbox.minX + bbox.maxX) / 2,
+    y: (bbox.minY + bbox.maxY) / 2,
+  };
+}
+
+export function expandBoundingBox(
+  bbox: BoundingBox,
+  margin: number
+): BoundingBox {
+  return {
+    minX: bbox.minX - margin,
+    minY: bbox.minY - margin,
+    maxX: bbox.maxX + margin,
+    maxY: bbox.maxY + margin,
+  };
+}
+
+export function boundingBoxesOverlap(a: BoundingBox, b: BoundingBox): boolean {
+  return !(
+    a.maxX < b.minX ||
+    a.minX > b.maxX ||
+    a.maxY < b.minY ||
+    a.minY > b.maxY
   );
 }
-```
 
----
+const DEFAULT_TEXT_HEIGHT = 2.54;
+const DEFAULT_PIN_TEXT_WIDTH_RATIO = 2.0;
+const DEFAULT_PIN_NUMBER_SIZE = 1.27;
 
-## Understanding the KiCAD Schematic Format
+export class SymbolBoundingBoxCalculator {
+  static calculateBoundingBox(
+    symbol: SymbolDefinition,
+    includeProperties: boolean = true
+  ): BoundingBox {
+    if (!symbol) {
+      return createBoundingBox(-2.54, -2.54, 2.54, 2.54);
+    }
 
-KiCAD schematic files (`.kicad_sch`) use an **S-expression** format—nested lists enclosed in parentheses:
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
-```lisp
-(kicad_sch
-  (version 20231120)
-  (generator "eeschema")
-  (generator_version "8.0")
-  (uuid "a5ebdc97-f1ba-4650-8f00-5e19694cb317")
-  (paper "A4")
+    for (const unit of symbol.units.values()) {
+      for (const pin of unit.pins) {
+        const pinBbox = this.getPinBounds(pin);
+        minX = Math.min(minX, pinBbox.minX);
+        minY = Math.min(minY, pinBbox.minY);
+        maxX = Math.max(maxX, pinBbox.maxX);
+        maxY = Math.max(maxY, pinBbox.maxY);
+      }
+    }
 
-  (lib_symbols
-    (symbol "Device:R"
-      (property "Reference" "R" (at 2.032 0 90) ...)
-      (symbol "Device:R_0_1"
-        (rectangle (start -1.016 -2.54) (end 1.016 2.54) ...)
-      )
-      (symbol "Device:R_1_1"
-        (pin passive line (at 0 3.81 270) (length 1.27) ...)
-      )
-    )
-  )
+    if (includeProperties) {
+      minY -= DEFAULT_TEXT_HEIGHT * 1.5;
+      maxY += DEFAULT_TEXT_HEIGHT * 1.5;
+    }
 
-  (symbol
-    (lib_id "Device:R")
-    (at 93.98 81.28 0)
-    (unit 1)
-    (uuid "a9fd95f7-...")
-    (property "Reference" "R1" (at 95.25 80.01 0) ...)
-    (property "Value" "10k" (at 95.25 82.55 0) ...)
-  )
+    if (!isFinite(minX)) {
+      return createBoundingBox(-2.54, -2.54, 2.54, 2.54);
+    }
 
-  (wire (pts (xy 100 80) (xy 100 90)) (stroke ...) (uuid "..."))
-  (label "VCC" (at 100 75 0) (effects ...) (uuid "..."))
-  (junction (at 100 80) (diameter 0) (color 0 0 0 0) (uuid "..."))
-)
-```
+    return createBoundingBox(minX, minY, maxX, maxY);
+  }
 
----
+  private static getPinBounds(pin: SymbolPin): BoundingBox {
+    const pos = pin.position;
+    const length = pin.length;
+    const rotation = pin.rotation;
 
-## File Structure (Part 1)
+    let endX = pos.x;
+    let endY = pos.y;
 
-```
-kicad-sch-ts/
-├── package.json
-├── tsconfig.json
-├── jest.config.js
-├── src/
-│   ├── index.ts                    # Main entry point, re-exports public API
-│   └── core/
-│       ├── types.ts                # All interfaces and enums
-│       ├── exceptions.ts           # Error classes
-│       ├── config.ts               # Configuration
-│       ├── parser.ts               # S-expression parser
-│       ├── formatter.ts            # S-expression formatter
-│       ├── schematic.ts            # Main Schematic class
-│       ├── collections/
-│       │   ├── base.ts             # BaseCollection, IndexRegistry
-│       │   ├── component.ts        # ComponentCollection
-│       │   ├── wire.ts             # WireCollection
-│       │   ├── label.ts            # LabelCollection
-│       │   ├── junction.ts         # JunctionCollection
-│       │   ├── no-connect.ts       # NoConnectCollection
-│       │   ├── bus.ts              # BusCollection, BusEntryCollection
-│       │   ├── sheet.ts            # SheetCollection
-│       │   ├── text.ts             # TextCollection, TextBoxCollection
-│       │   ├── graphics.ts         # RectangleCollection, ImageCollection
-│       │   └── index.ts            # Re-exports
-│       └── parsers/
-│           ├── symbol-parser.ts    # Component/symbol parsing
-│           ├── wire-parser.ts      # Wire parsing
-│           ├── label-parser.ts     # Label parsing
-│           └── index.ts            # Re-exports
-├── test/
-│   ├── unit/
-│   │   ├── parser.test.ts
-│   │   ├── formatter.test.ts
-│   │   └── types.test.ts
-│   ├── integration/
-│   │   └── round-trip.test.ts
-│   └── fixtures/                   # Copy from Python project
-│       ├── blank/
-│       ├── single_resistor/
-│       ├── rotated_resistor_0deg/
-│       ├── rotated_resistor_90deg/
-│       ├── rotated_resistor_180deg/
-│       └── rotated_resistor_270deg/
-└── bin/
-    └── kicad-sch.js
-```
+    switch (rotation) {
+      case 0:
+        endX = pos.x + length;
+        break;
+      case 90:
+        endY = pos.y + length;
+        break;
+      case 180:
+        endX = pos.x - length;
+        break;
+      case 270:
+        endY = pos.y - length;
+        break;
+    }
 
----
+    const textWidth = Math.max(
+      pin.name.length * DEFAULT_PIN_TEXT_WIDTH_RATIO * DEFAULT_PIN_NUMBER_SIZE,
+      pin.number.length * DEFAULT_PIN_TEXT_WIDTH_RATIO * DEFAULT_PIN_NUMBER_SIZE
+    );
 
-## Dependencies (Part 1)
+    const minX = Math.min(pos.x, endX) - textWidth / 2;
+    const maxX = Math.max(pos.x, endX) + textWidth / 2;
+    const minY = Math.min(pos.y, endY) - DEFAULT_PIN_NUMBER_SIZE;
+    const maxY = Math.max(pos.y, endY) + DEFAULT_PIN_NUMBER_SIZE;
 
-```json
-{
-  "name": "kicad-sch-ts",
-  "version": "1.0.0",
-  "description": "TypeScript library for KiCAD schematic files",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "test": "jest",
-    "test:watch": "jest --watch"
-  },
-  "devDependencies": {
-    "@types/jest": "^29.5.0",
-    "@types/node": "^20.0.0",
-    "jest": "^29.5.0",
-    "ts-jest": "^29.1.0",
-    "typescript": "^5.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    return createBoundingBox(minX, minY, maxX, maxY);
   }
 }
+
+/**
+ * Get bounding box for a placed component in schematic space.
+ */
+export function getComponentBoundingBox(
+  component: Component,
+  symbolCache?: SymbolLibraryCache,
+  includeProperties: boolean = true
+): BoundingBox | null {
+  const symbolDef = symbolCache?.getSymbol(component.libId);
+  if (!symbolDef) return null;
+
+  const symbolBbox = SymbolBoundingBoxCalculator.calculateBoundingBox(
+    symbolDef,
+    includeProperties
+  );
+
+  return transformBoundingBox(
+    symbolBbox,
+    component.position,
+    component.rotation,
+    component.mirror
+  );
+}
+
+function transformBoundingBox(
+  bbox: BoundingBox,
+  position: Point,
+  rotation: number,
+  mirror?: "x" | "y"
+): BoundingBox {
+  const corners: Point[] = [
+    { x: bbox.minX, y: bbox.minY },
+    { x: bbox.maxX, y: bbox.minY },
+    { x: bbox.maxX, y: bbox.maxY },
+    { x: bbox.minX, y: bbox.maxY },
+  ];
+
+  const transformed = corners.map((corner) => {
+    let x = corner.x;
+    let y = -corner.y; // Y-negation for symbol-to-schematic
+
+    if (mirror === "x") x = -x;
+    if (mirror === "y") y = -y;
+
+    const rad = (rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const rotX = x * cos - y * sin;
+    const rotY = x * sin + y * cos;
+
+    return {
+      x: position.x + rotX,
+      y: position.y + rotY,
+    };
+  });
+
+  let minX = transformed[0].x,
+    maxX = transformed[0].x;
+  let minY = transformed[0].y,
+    maxY = transformed[0].y;
+  for (const p of transformed) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+
+  return createBoundingBox(minX, minY, maxX, maxY);
+}
 ```
 
 ---
 
-## Core Types (`src/core/types.ts`)
-
-Port from `kicad_sch_api/core/types.py`. This file defines ALL data structures.
+## Validation: ERC (`src/validation/erc.ts`)
 
 ```typescript
-// src/core/types.ts
+// src/validation/erc.ts
 
-// ============================================================
-// Basic Geometric Types
-// ============================================================
+import { Schematic } from "../core/schematic";
+import { PinType } from "../core/types";
 
-export interface Point {
-  x: number;
-  y: number;
+export enum ERCSeverity {
+  ERROR = "error",
+  WARNING = "warning",
+  INFO = "info",
 }
 
-export interface Size {
-  width: number;
-  height: number;
-}
-
-export interface Rectangle {
-  start: Point;
-  end: Point;
-}
-
-// ============================================================
-// Enums
-// ============================================================
-
-export enum PinType {
-  INPUT = "input",
-  OUTPUT = "output",
-  BIDIRECTIONAL = "bidirectional",
-  TRI_STATE = "tri_state",
-  PASSIVE = "passive",
-  FREE = "free",
-  UNSPECIFIED = "unspecified",
-  POWER_IN = "power_in",
-  POWER_OUT = "power_out",
-  OPEN_COLLECTOR = "open_collector",
-  OPEN_EMITTER = "open_emitter",
-  NO_CONNECT = "no_connect",
-}
-
-export enum PinShape {
-  LINE = "line",
-  INVERTED = "inverted",
-  CLOCK = "clock",
-  INVERTED_CLOCK = "inverted_clock",
-  INPUT_LOW = "input_low",
-  CLOCK_LOW = "clock_low",
-  OUTPUT_LOW = "output_low",
-  EDGE_CLOCK_HIGH = "edge_clock_high",
-  NON_LOGIC = "non_logic",
-}
-
-export enum WireType {
-  WIRE = "wire",
-  BUS = "bus",
-  BUS_ENTRY = "bus_entry",
-}
-
-export enum LabelType {
-  LOCAL = "label",
-  GLOBAL = "global_label",
-  HIERARCHICAL = "hierarchical_label",
-}
-
-export enum HierarchicalLabelShape {
-  INPUT = "input",
-  OUTPUT = "output",
-  BIDIRECTIONAL = "bidirectional",
-  TRI_STATE = "tri_state",
-  PASSIVE = "passive",
-}
-
-export enum TextJustify {
-  LEFT = "left",
-  CENTER = "center",
-  RIGHT = "right",
-}
-
-export enum TextVerticalJustify {
-  TOP = "top",
-  CENTER = "center",
-  BOTTOM = "bottom",
-}
-
-export enum StrokeType {
-  DEFAULT = "default",
-  SOLID = "solid",
-  DASH = "dash",
-  DOT = "dot",
-  DASH_DOT = "dash_dot",
-  DASH_DOT_DOT = "dash_dot_dot",
-}
-
-export enum FillType {
-  NONE = "none",
-  OUTLINE = "outline",
-  BACKGROUND = "background",
-}
-
-// ============================================================
-// Text Effects
-// ============================================================
-
-export interface TextEffects {
-  font?: {
-    face?: string;
-    size: [number, number]; // [width, height]
-    thickness?: number;
-    bold?: boolean;
-    italic?: boolean;
-    color?: [number, number, number, number]; // RGBA
+export interface ERCViolation {
+  code: string;
+  severity: ERCSeverity;
+  message: string;
+  location?: {
+    sheet?: string;
+    element?: string;
+    position?: { x: number; y: number };
   };
-  justify?: {
-    horizontal?: TextJustify;
-    vertical?: TextVerticalJustify;
-    mirror?: boolean;
-  };
-  hide?: boolean;
 }
 
-// ============================================================
-// Property Value (for component properties)
-// ============================================================
-
-export interface PropertyValue {
-  value: string;
-  position: Point;
-  rotation: number;
-  effects?: TextEffects;
-  showName?: boolean;
+export interface ERCResult {
+  violations: ERCViolation[];
+  errorCount: number;
+  warningCount: number;
+  passed: boolean;
 }
 
-// ============================================================
-// Stroke
-// ============================================================
-
-export interface Stroke {
-  width: number;
-  type: StrokeType;
-  color?: [number, number, number, number];
+export interface ERCConfig {
+  checkPinConflicts: boolean;
+  checkUnconnectedPins: boolean;
+  checkDuplicateReferences: boolean;
+  checkOffGridPins: boolean;
+  treatWarningsAsErrors: boolean;
 }
 
-// ============================================================
-// Title Block
-// ============================================================
-
-export interface TitleBlock {
-  title?: string;
-  date?: string;
-  rev?: string;
-  company?: string;
-  comment: Map<number, string>;
-}
-
-// ============================================================
-// Schematic Symbol (placed component)
-// ============================================================
-
-export interface SchematicSymbol {
-  uuid: string;
-  libId: string;
-  position: Point;
-  rotation: number;
-  mirror?: "x" | "y";
-  unit: number;
-  inBom: boolean;
-  onBoard: boolean;
-  excludeFromSim: boolean;
-  dnp: boolean;
-  fieldsAutoplaced?: boolean;
-  properties: Map<string, PropertyValue>;
-  pins: Map<string, string>; // pin number -> pin uuid
-  instances?: SymbolInstance[];
-}
-
-export interface SymbolInstance {
-  project: string;
-  path: string;
-  reference: string;
-  unit: number;
-}
-
-// ============================================================
-// Wire
-// ============================================================
-
-export interface Wire {
-  uuid: string;
-  points: Point[];
-  stroke?: Stroke;
-}
-
-// ============================================================
-// Bus
-// ============================================================
-
-export interface Bus {
-  uuid: string;
-  points: Point[];
-  stroke?: Stroke;
-}
-
-export interface BusEntry {
-  uuid: string;
-  position: Point;
-  size: Size;
-  stroke?: Stroke;
-}
-
-// ============================================================
-// Labels
-// ============================================================
-
-export interface Label {
-  uuid: string;
-  text: string;
-  position: Point;
-  rotation: number;
-  effects?: TextEffects;
-  fieldsAutoplaced?: boolean;
-}
-
-export interface GlobalLabel extends Label {
-  shape: HierarchicalLabelShape;
-  properties: Map<string, PropertyValue>;
-}
-
-export interface HierarchicalLabel extends Label {
-  shape: HierarchicalLabelShape;
-}
-
-// ============================================================
-// Junction & No Connect
-// ============================================================
-
-export interface Junction {
-  uuid: string;
-  position: Point;
-  diameter: number;
-  color: [number, number, number, number];
-}
-
-export interface NoConnect {
-  uuid: string;
-  position: Point;
-}
-
-// ============================================================
-// Sheet (Hierarchical)
-// ============================================================
-
-export interface Sheet {
-  uuid: string;
-  position: Point;
-  size: Size;
-  fieldsAutoplaced?: boolean;
-  stroke?: Stroke;
-  fill?: { color: [number, number, number, number] };
-  name: PropertyValue;
-  filename: PropertyValue;
-  pins: SheetPin[];
-  instances?: SheetInstance[];
-}
-
-export interface SheetPin {
-  uuid: string;
-  name: string;
-  shape: HierarchicalLabelShape;
-  position: Point;
-  rotation: number;
-  effects?: TextEffects;
-}
-
-export interface SheetInstance {
-  project: string;
-  path: string;
-  page: string;
-}
-
-// ============================================================
-// Text Elements
-// ============================================================
-
-export interface Text {
-  uuid: string;
-  text: string;
-  position: Point;
-  rotation: number;
-  effects?: TextEffects;
-}
-
-export interface TextBox {
-  uuid: string;
-  text: string;
-  position: Point;
-  size: Size;
-  stroke?: Stroke;
-  fill?: { type: FillType; color?: [number, number, number, number] };
-  effects?: TextEffects;
-}
-
-// ============================================================
-// Graphics
-// ============================================================
-
-export interface SchematicRectangle {
-  uuid: string;
-  start: Point;
-  end: Point;
-  stroke?: Stroke;
-  fill?: { type: FillType; color?: [number, number, number, number] };
-}
-
-export interface SchematicImage {
-  uuid: string;
-  position: Point;
-  scale: number;
-  data: string; // Base64 encoded
-}
-
-// ============================================================
-// Symbol Definition (from lib_symbols or .kicad_sym)
-// ============================================================
-
-export interface SymbolDefinition {
-  libId: string;
-  name: string;
-  library: string;
-  referencePrefix: string;
-  description: string;
-  keywords: string;
-  datasheet: string;
-  unitCount: number;
-  unitsLocked: boolean;
-  isPower: boolean;
-  pinNames: { offset: number; hide: boolean };
-  pinNumbers: { hide: boolean };
-  inBom: boolean;
-  onBoard: boolean;
-  properties: Map<string, PropertyValue>;
-  units: Map<number, SymbolUnit>;
-}
-
-export interface SymbolUnit {
-  unitNumber: number;
-  style: number;
-  graphics: SymbolGraphics[];
-  pins: SymbolPin[];
-}
-
-export interface SymbolPin {
-  number: string;
-  name: string;
-  position: Point;
-  length: number;
-  rotation: number;
-  electricalType: PinType;
-  graphicStyle: PinShape;
-  nameEffects?: TextEffects;
-  numberEffects?: TextEffects;
-  hide: boolean;
-  alternate: Array<{ name: string; type: PinType; shape: PinShape }>;
-}
-
-export interface SymbolGraphics {
-  type: "rectangle" | "circle" | "arc" | "polyline" | "text";
-  // Additional properties depend on type
-  [key: string]: unknown;
-}
-
-// ============================================================
-// Net (for connectivity analysis - used in Part 2)
-// ============================================================
-
-export interface Net {
-  name: string;
-  pins: Array<{ reference: string; pin: string; position: Point }>;
-  labels: string[];
-  wires: Wire[];
-}
-```
-
----
-
-## Exceptions (`src/core/exceptions.ts`)
-
-```typescript
-// src/core/exceptions.ts
-
-export class KiCadSchError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "KiCadSchError";
-  }
-}
-
-export class ParseError extends KiCadSchError {
-  constructor(message: string, public line?: number, public column?: number) {
-    super(message);
-    this.name = "ParseError";
-  }
-}
-
-export class FormatError extends KiCadSchError {
-  constructor(message: string) {
-    super(message);
-    this.name = "FormatError";
-  }
-}
-
-export class ValidationError extends KiCadSchError {
-  constructor(message: string, public field?: string) {
-    super(message);
-    this.name = "ValidationError";
-  }
-}
-
-export class ElementNotFoundError extends KiCadSchError {
-  constructor(elementType: string, identifier: string) {
-    super(`${elementType} not found: ${identifier}`);
-    this.name = "ElementNotFoundError";
-  }
-}
-
-export class DuplicateElementError extends KiCadSchError {
-  constructor(elementType: string, identifier: string) {
-    super(`Duplicate ${elementType}: ${identifier}`);
-    this.name = "DuplicateElementError";
-  }
-}
-
-export class LibraryError extends KiCadSchError {
-  constructor(message: string) {
-    super(message);
-    this.name = "LibraryError";
-  }
-}
-
-export class SymbolNotFoundError extends LibraryError {
-  constructor(libId: string) {
-    super(`Symbol not found: ${libId}`);
-    this.name = "SymbolNotFoundError";
-  }
-}
-
-export class ConnectivityError extends KiCadSchError {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConnectivityError";
-  }
-}
-
-export class HierarchyError extends KiCadSchError {
-  constructor(message: string) {
-    super(message);
-    this.name = "HierarchyError";
-  }
-}
-```
-
----
-
-## Configuration (`src/core/config.ts`)
-
-```typescript
-// src/core/config.ts
-
-export interface GridSettings {
-  size: number; // Default: 1.27 (50 mil)
-  snapEnabled: boolean;
-}
-
-export interface PositioningSettings {
-  defaultPropertyOffset: Point;
-  referenceOffset: Point;
-  valueOffset: Point;
-}
-
-export interface ToleranceSettings {
-  positionTolerance: number; // Default: 0.001
-  angleTolerance: number; // Default: 0.01
-}
-
-export interface KiCADConfig {
-  grid: GridSettings;
-  positioning: PositioningSettings;
-  tolerance: ToleranceSettings;
-  defaultTextSize: [number, number];
-  defaultStrokeWidth: number;
-}
-
-export const DEFAULT_CONFIG: KiCADConfig = {
-  grid: {
-    size: 1.27,
-    snapEnabled: true,
-  },
-  positioning: {
-    defaultPropertyOffset: { x: 0, y: 0 },
-    referenceOffset: { x: 1.27, y: -1.27 },
-    valueOffset: { x: 1.27, y: 1.27 },
-  },
-  tolerance: {
-    positionTolerance: 0.001,
-    angleTolerance: 0.01,
-  },
-  defaultTextSize: [1.27, 1.27],
-  defaultStrokeWidth: 0,
+export const DEFAULT_ERC_CONFIG: ERCConfig = {
+  checkPinConflicts: true,
+  checkUnconnectedPins: true,
+  checkDuplicateReferences: true,
+  checkOffGridPins: true,
+  treatWarningsAsErrors: false,
 };
 
-let globalConfig: KiCADConfig = { ...DEFAULT_CONFIG };
+export class ElectricalRulesChecker {
+  private schematic: Schematic;
+  private config: ERCConfig;
 
-export function getConfig(): KiCADConfig {
-  return globalConfig;
-}
-
-export function setConfig(config: Partial<KiCADConfig>): void {
-  globalConfig = { ...globalConfig, ...config };
-}
-
-export function resetConfig(): void {
-  globalConfig = { ...DEFAULT_CONFIG };
-}
-```
-
----
-
-## S-Expression Parser (`src/core/parser.ts`)
-
-Port from `kicad_sch_api/core/parser.py`. This is critical for reading KiCAD files.
-
-```typescript
-// src/core/parser.ts
-
-import { ParseError } from "./exceptions";
-
-/**
- * Represents a symbol (atom) in an S-expression.
- * Symbols are unquoted identifiers like `kicad_sch`, `wire`, `at`, etc.
- */
-export class Symbol {
-  constructor(public readonly name: string) {}
-
-  toString(): string {
-    return this.name;
-  }
-}
-
-export type SExp = Symbol | string | number | boolean | SExp[];
-
-/**
- * Tokenizer for S-expressions.
- */
-class Tokenizer {
-  private pos: number = 0;
-  private line: number = 1;
-  private column: number = 1;
-
-  constructor(private input: string) {}
-
-  peek(): string | null {
-    this.skipWhitespace();
-    if (this.pos >= this.input.length) return null;
-    return this.input[this.pos];
+  constructor(schematic: Schematic, config?: Partial<ERCConfig>) {
+    this.schematic = schematic;
+    this.config = { ...DEFAULT_ERC_CONFIG, ...config };
   }
 
-  next(): string | null {
-    this.skipWhitespace();
-    if (this.pos >= this.input.length) return null;
+  check(): ERCResult {
+    const violations: ERCViolation[] = [];
 
-    const char = this.input[this.pos];
-
-    if (char === "(" || char === ")") {
-      this.advance();
-      return char;
+    if (this.config.checkDuplicateReferences) {
+      violations.push(...this.checkDuplicateReferences());
     }
 
-    if (char === '"') {
-      return this.readString();
+    if (this.config.checkOffGridPins) {
+      violations.push(...this.checkOffGridPins());
     }
 
-    return this.readAtom();
+    const errorCount = violations.filter(
+      (v) => v.severity === ERCSeverity.ERROR
+    ).length;
+    const warningCount = violations.filter(
+      (v) => v.severity === ERCSeverity.WARNING
+    ).length;
+
+    return {
+      violations,
+      errorCount,
+      warningCount,
+      passed: this.config.treatWarningsAsErrors
+        ? errorCount + warningCount === 0
+        : errorCount === 0,
+    };
   }
 
-  private skipWhitespace(): void {
-    while (this.pos < this.input.length) {
-      const char = this.input[this.pos];
-      if (char === " " || char === "\t" || char === "\r") {
-        this.advance();
-      } else if (char === "\n") {
-        this.advance();
-        this.line++;
-        this.column = 1;
+  private checkDuplicateReferences(): ERCViolation[] {
+    const violations: ERCViolation[] = [];
+    const seen = new Map<string, string>();
+
+    for (const component of this.schematic.components) {
+      const ref = component.reference;
+      if (seen.has(ref)) {
+        violations.push({
+          code: "DUPLICATE_REFERENCE",
+          severity: ERCSeverity.ERROR,
+          message: `Duplicate reference designator: ${ref}`,
+          location: { element: component.uuid },
+        });
       } else {
-        break;
-      }
-    }
-  }
-
-  private advance(): void {
-    this.pos++;
-    this.column++;
-  }
-
-  private readString(): string {
-    let result = "";
-    this.advance(); // Skip opening quote
-
-    while (this.pos < this.input.length) {
-      const char = this.input[this.pos];
-
-      if (char === '"') {
-        this.advance(); // Skip closing quote
-        return result;
-      }
-
-      if (char === "\\") {
-        this.advance();
-        if (this.pos >= this.input.length) {
-          throw new ParseError(
-            "Unexpected end of input in string escape",
-            this.line,
-            this.column
-          );
-        }
-        const escaped = this.input[this.pos];
-        switch (escaped) {
-          case "n":
-            result += "\n";
-            break;
-          case "t":
-            result += "\t";
-            break;
-          case "r":
-            result += "\r";
-            break;
-          case "\\":
-            result += "\\";
-            break;
-          case '"':
-            result += '"';
-            break;
-          default:
-            result += escaped;
-        }
-        this.advance();
-      } else {
-        result += char;
-        this.advance();
+        seen.set(ref, component.uuid);
       }
     }
 
-    throw new ParseError("Unterminated string", this.line, this.column);
+    return violations;
   }
 
-  private readAtom(): string {
-    let result = "";
+  private checkOffGridPins(): ERCViolation[] {
+    const violations: ERCViolation[] = [];
+    const gridSize = 1.27;
 
-    while (this.pos < this.input.length) {
-      const char = this.input[this.pos];
-      if (
-        char === "(" ||
-        char === ")" ||
-        char === '"' ||
-        char === " " ||
-        char === "\t" ||
-        char === "\n" ||
-        char === "\r"
-      ) {
-        break;
+    for (const component of this.schematic.components) {
+      const pos = component.position;
+      const snapX = Math.round(pos.x / gridSize) * gridSize;
+      const snapY = Math.round(pos.y / gridSize) * gridSize;
+
+      if (Math.abs(pos.x - snapX) > 0.01 || Math.abs(pos.y - snapY) > 0.01) {
+        violations.push({
+          code: "OFF_GRID",
+          severity: ERCSeverity.WARNING,
+          message: `Component ${component.reference} is off-grid`,
+          location: { element: component.uuid, position: pos },
+        });
       }
-      result += char;
-      this.advance();
     }
 
-    return result;
-  }
-
-  getPosition(): { line: number; column: number } {
-    return { line: this.line, column: this.column };
-  }
-}
-
-/**
- * S-expression parser.
- */
-export class SExpressionParser {
-  parse(input: string): SExp {
-    const tokenizer = new Tokenizer(input);
-    const result = this.parseExpression(tokenizer);
-
-    // Ensure we've consumed all input
-    if (tokenizer.peek() !== null) {
-      const pos = tokenizer.getPosition();
-      throw new ParseError(
-        "Unexpected content after expression",
-        pos.line,
-        pos.column
-      );
-    }
-
-    return result;
-  }
-
-  private parseExpression(tokenizer: Tokenizer): SExp {
-    const token = tokenizer.next();
-
-    if (token === null) {
-      throw new ParseError("Unexpected end of input");
-    }
-
-    if (token === "(") {
-      return this.parseList(tokenizer);
-    }
-
-    if (token === ")") {
-      throw new ParseError("Unexpected closing parenthesis");
-    }
-
-    return this.parseAtom(token);
-  }
-
-  private parseList(tokenizer: Tokenizer): SExp[] {
-    const list: SExp[] = [];
-
-    while (true) {
-      const peek = tokenizer.peek();
-
-      if (peek === null) {
-        throw new ParseError("Unexpected end of input in list");
-      }
-
-      if (peek === ")") {
-        tokenizer.next(); // Consume the ')'
-        return list;
-      }
-
-      list.push(this.parseExpression(tokenizer));
-    }
-  }
-
-  private parseAtom(token: string): SExp {
-    // Check for boolean
-    if (token === "yes" || token === "true") return true;
-    if (token === "no" || token === "false") return false;
-
-    // Check for number
-    const num = this.tryParseNumber(token);
-    if (num !== null) return num;
-
-    // It's a symbol
-    return new Symbol(token);
-  }
-
-  private tryParseNumber(token: string): number | null {
-    // Handle integers
-    if (/^-?\d+$/.test(token)) {
-      return parseInt(token, 10);
-    }
-
-    // Handle floats (including scientific notation)
-    if (/^-?\d*\.?\d+([eE][+-]?\d+)?$/.test(token)) {
-      return parseFloat(token);
-    }
-
-    return null;
+    return violations;
   }
 }
 ```
 
 ---
 
-## S-Expression Formatter (`src/core/formatter.ts`)
-
-Port from `kicad_sch_api/core/formatter.py`. This is critical for writing KiCAD files with exact format preservation.
+## BOM Auditor (`src/bom/auditor.ts`)
 
 ```typescript
-// src/core/formatter.ts
+// src/bom/auditor.ts
 
-import { Symbol, SExp } from "./parser";
-import { FormatError } from "./exceptions";
+import { Schematic } from "../core/schematic";
+import { Component } from "../core/collections/component";
+import { writeFileSync, readdirSync } from "fs";
+import { join } from "path";
 
-/**
- * Elements that should be formatted inline (on a single line).
- */
-const INLINE_ELEMENTS = new Set([
-  "at",
-  "xy",
-  "pts",
-  "start",
-  "end",
-  "center",
-  "mid",
-  "size",
-  "stroke",
-  "color",
-  "fill",
-  "font",
-  "justify",
-  "effects",
-  "offset",
-  "length",
-  "diameter",
-  "width",
-  "height",
-  "thickness",
-  "angle",
-  "scale",
-  "pin",
-  "number",
-  "name",
-  "alternate",
-]);
+export interface ComponentIssue {
+  schematic: string;
+  reference: string;
+  value: string;
+  footprint: string;
+  libId: string;
+  missingProperties: string[];
+  existingProperties: Record<string, string>;
+}
 
-/**
- * Elements that should always be on their own line.
- */
-const BLOCK_ELEMENTS = new Set([
-  "kicad_sch",
-  "lib_symbols",
-  "symbol",
-  "wire",
-  "bus",
-  "bus_entry",
-  "junction",
-  "no_connect",
-  "label",
-  "global_label",
-  "hierarchical_label",
-  "text",
-  "text_box",
-  "rectangle",
-  "polyline",
-  "circle",
-  "arc",
-  "sheet",
-  "sheet_instances",
-  "symbol_instances",
-  "image",
-  "property",
-  "title_block",
-  "paper",
-  "instances",
-  "project",
-  "path",
-]);
+export class BOMPropertyAuditor {
+  auditSchematic(
+    schematicPath: string,
+    requiredProperties: string[],
+    excludeDnp: boolean = false
+  ): ComponentIssue[] {
+    const issues: ComponentIssue[] = [];
 
-/**
- * Formatter that produces output identical to KiCAD's native format.
- */
-export class ExactFormatter {
-  private indentChar: string = "\t";
+    try {
+      const sch = Schematic.load(schematicPath);
 
-  format(sexp: SExp): string {
-    return this.formatElement(sexp, 0).trim();
+      for (const component of sch.components) {
+        if (excludeDnp && !component.inBom) {
+          continue;
+        }
+
+        const missing: string[] = [];
+        for (const prop of requiredProperties) {
+          if (!component.getProperty(prop)) {
+            missing.push(prop);
+          }
+        }
+
+        if (missing.length > 0) {
+          issues.push({
+            schematic: schematicPath,
+            reference: component.reference,
+            value: component.value,
+            footprint: component.footprint || "",
+            libId: component.libId,
+            missingProperties: missing,
+            existingProperties: component.properties,
+          });
+        }
+      }
+    } catch (e) {
+      console.error(`Error loading ${schematicPath}:`, e);
+    }
+
+    return issues;
   }
 
-  private formatElement(sexp: SExp, depth: number): string {
-    if (!Array.isArray(sexp)) {
-      return this.formatAtom(sexp);
+  auditDirectory(
+    directory: string,
+    requiredProperties: string[],
+    recursive: boolean = true,
+    excludeDnp: boolean = false
+  ): ComponentIssue[] {
+    const issues: ComponentIssue[] = [];
+    const files = this.findSchematicFiles(directory, recursive);
+
+    for (const file of files) {
+      issues.push(...this.auditSchematic(file, requiredProperties, excludeDnp));
     }
 
-    if (sexp.length === 0) {
-      return "()";
-    }
-
-    const tag = this.getTag(sexp);
-    const isInline = this.shouldBeInline(sexp, tag);
-
-    if (isInline) {
-      return this.formatInline(sexp);
-    }
-
-    return this.formatBlock(sexp, depth);
+    return issues;
   }
 
-  private formatAtom(atom: SExp): string {
-    if (atom instanceof Symbol) {
-      return atom.name;
+  private findSchematicFiles(directory: string, recursive: boolean): string[] {
+    const files: string[] = [];
+
+    try {
+      const entries = readdirSync(directory, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(directory, entry.name);
+        if (entry.isFile() && entry.name.endsWith(".kicad_sch")) {
+          files.push(fullPath);
+        } else if (recursive && entry.isDirectory()) {
+          files.push(...this.findSchematicFiles(fullPath, recursive));
+        }
+      }
+    } catch (e) {
+      // Directory not readable
     }
 
-    if (typeof atom === "string") {
-      return this.formatString(atom);
-    }
-
-    if (typeof atom === "number") {
-      return this.formatNumber(atom);
-    }
-
-    if (typeof atom === "boolean") {
-      return atom ? "yes" : "no";
-    }
-
-    throw new FormatError(`Unknown atom type: ${typeof atom}`);
+    return files;
   }
 
-  private formatString(str: string): string {
-    // Check if string needs quoting
-    const needsQuotes =
-      str.includes(" ") ||
-      str.includes('"') ||
-      str.includes("(") ||
-      str.includes(")") ||
-      str.includes("\n") ||
-      str.includes("\t") ||
-      str.length === 0;
+  generateCsvReport(issues: ComponentIssue[], outputPath: string): void {
+    const headers = [
+      "Schematic",
+      "Reference",
+      "Value",
+      "Footprint",
+      "LibID",
+      "Missing Properties",
+    ];
+    const rows = issues.map((issue) => [
+      issue.schematic,
+      issue.reference,
+      issue.value,
+      issue.footprint,
+      issue.libId,
+      issue.missingProperties.join("; "),
+    ]);
 
-    if (!needsQuotes) {
-      return str;
-    }
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) => r.map((c) => `"${c}"`).join(",")),
+    ].join("\n");
+    writeFileSync(outputPath, csv);
+  }
+}
+```
 
-    // Escape special characters
-    const escaped = str
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, "\\n")
-      .replace(/\t/g, "\\t")
-      .replace(/\r/g, "\\r");
+---
 
-    return `"${escaped}"`;
+## Python Code Generator (`src/exporters/python-generator.ts`)
+
+```typescript
+// src/exporters/python-generator.ts
+
+import { Schematic } from "../core/schematic";
+import { Component } from "../core/collections/component";
+import { Wire, Label, GlobalLabel, HierarchicalLabel } from "../core/types";
+
+export class PythonCodeGenerator {
+  private template: "minimal" | "default" | "verbose" | "documented";
+  private formatCode: boolean;
+  private addComments: boolean;
+
+  constructor(
+    template: "minimal" | "default" | "verbose" | "documented" = "default",
+    formatCode: boolean = true,
+    addComments: boolean = true
+  ) {
+    this.template = template;
+    this.formatCode = formatCode;
+    this.addComments = addComments;
   }
 
-  private formatNumber(num: number): string {
-    // KiCAD uses specific formatting for numbers
-    if (Number.isInteger(num)) {
-      return num.toString();
-    }
-
-    // For floats, preserve trailing zeros in certain cases
-    // KiCAD typically uses up to 6 decimal places
-    const str = num.toFixed(6);
-
-    // Remove unnecessary trailing zeros, but keep at least one decimal place
-    // for numbers that should be floats
-    return str.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-  }
-
-  private formatInline(sexp: SExp[]): string {
-    const parts = sexp.map((item) => this.formatElement(item, 0));
-    return `(${parts.join(" ")})`;
-  }
-
-  private formatBlock(sexp: SExp[], depth: number): string {
-    const indent = this.indentChar.repeat(depth);
-    const childIndent = this.indentChar.repeat(depth + 1);
+  generate(
+    schematic: Schematic,
+    includeHierarchy: boolean = true,
+    outputPath?: string
+  ): string {
     const lines: string[] = [];
 
-    // First element (tag) on same line as opening paren
-    const tag = this.formatElement(sexp[0], 0);
+    lines.push("#!/usr/bin/env python3");
+    lines.push('"""');
+    lines.push(
+      `Generated from: ${schematic.fileIO?.getFilePath() || "unknown"}`
+    );
+    lines.push(`Generated at: ${new Date().toISOString()}`);
+    lines.push('"""');
+    lines.push("");
+    lines.push("import kicad_sch_api as ksa");
+    lines.push("");
 
-    // Check if there are simple attributes that should be on the same line as tag
-    const inlineAttrs: string[] = [];
-    let i = 1;
+    const title = schematic.title || "Untitled";
+    lines.push(`# Create schematic`);
+    lines.push(`sch = ksa.create_schematic("${this.escapeString(title)}")`);
+    lines.push("");
 
-    while (i < sexp.length) {
-      const item = sexp[i];
-      if (this.isSimpleAttribute(item)) {
-        inlineAttrs.push(this.formatElement(item, 0));
-        i++;
-      } else {
-        break;
+    if (schematic.components.length > 0) {
+      lines.push("# Add components");
+      for (const component of schematic.components) {
+        lines.push(this.generateComponentCode(component));
       }
+      lines.push("");
     }
 
-    if (inlineAttrs.length > 0) {
-      lines.push(`${indent}(${tag} ${inlineAttrs.join(" ")}`);
-    } else {
-      lines.push(`${indent}(${tag}`);
-    }
-
-    // Remaining elements on their own lines
-    for (; i < sexp.length; i++) {
-      const item = sexp[i];
-      const formatted = this.formatElement(item, depth + 1);
-
-      if (
-        Array.isArray(item) &&
-        !this.shouldBeInline(item, this.getTag(item))
-      ) {
-        lines.push(formatted);
-      } else {
-        lines.push(`${childIndent}${formatted}`);
+    if (schematic.wires.length > 0) {
+      lines.push("# Add wires");
+      for (const wire of schematic.wires) {
+        lines.push(this.generateWireCode(wire));
       }
+      lines.push("");
     }
 
-    // Closing paren
-    lines.push(`${indent})`);
+    if (schematic.labels.length > 0) {
+      lines.push("# Add labels");
+      for (const label of schematic.labels) {
+        lines.push(this.generateLabelCode(label));
+      }
+      lines.push("");
+    }
+
+    if (outputPath) {
+      lines.push(`# Save schematic`);
+      lines.push(`sch.save("${this.escapeString(outputPath)}")`);
+    }
 
     return lines.join("\n");
   }
 
-  private getTag(sexp: SExp[]): string | null {
-    if (sexp.length > 0 && sexp[0] instanceof Symbol) {
-      return sexp[0].name;
-    }
-    return null;
-  }
+  private generateComponentCode(component: Component): string {
+    const pos = component.position;
+    let code = `sch.components.add(`;
+    code += `lib_id="${component.libId}", `;
+    code += `reference="${component.reference}", `;
+    code += `value="${this.escapeString(component.value)}", `;
+    code += `position=(${pos.x}, ${pos.y})`;
 
-  private shouldBeInline(sexp: SExp[], tag: string | null): boolean {
-    if (tag && INLINE_ELEMENTS.has(tag)) {
-      return true;
+    if (component.rotation !== 0) {
+      code += `, rotation=${component.rotation}`;
     }
-
-    // Short lists without nested lists can be inline
-    if (
-      sexp.length <= 4 &&
-      !sexp.some((item) => Array.isArray(item) && item.length > 3)
-    ) {
-      return true;
+    if (component.footprint) {
+      code += `, footprint="${component.footprint}"`;
     }
 
-    return false;
+    code += ")";
+    return code;
   }
 
-  private isSimpleAttribute(item: SExp): boolean {
-    // Simple attributes are non-array values or very short arrays
-    if (!Array.isArray(item)) {
-      return true;
-    }
-
-    if (item.length <= 2 && !item.some((i) => Array.isArray(i))) {
-      return true;
-    }
-
-    return false;
-  }
-}
-```
-
----
-
-## Base Collection (`src/core/collections/base.ts`)
-
-```typescript
-// src/core/collections/base.ts
-
-import { DuplicateElementError, ElementNotFoundError } from "../exceptions";
-
-/**
- * Registry for tracking elements by various indices.
- */
-export class IndexRegistry<T> {
-  private byUuid: Map<string, T> = new Map();
-  private byReference: Map<string, T> = new Map();
-
-  addByUuid(uuid: string, item: T): void {
-    if (this.byUuid.has(uuid)) {
-      throw new DuplicateElementError("element", uuid);
-    }
-    this.byUuid.set(uuid, item);
-  }
-
-  addByReference(reference: string, item: T): void {
-    if (this.byReference.has(reference)) {
-      throw new DuplicateElementError("reference", reference);
-    }
-    this.byReference.set(reference, item);
-  }
-
-  getByUuid(uuid: string): T | undefined {
-    return this.byUuid.get(uuid);
-  }
-
-  getByReference(reference: string): T | undefined {
-    return this.byReference.get(reference);
-  }
-
-  removeByUuid(uuid: string): boolean {
-    return this.byUuid.delete(uuid);
-  }
-
-  removeByReference(reference: string): boolean {
-    return this.byReference.delete(reference);
-  }
-
-  hasUuid(uuid: string): boolean {
-    return this.byUuid.has(uuid);
-  }
-
-  hasReference(reference: string): boolean {
-    return this.byReference.has(reference);
-  }
-
-  clear(): void {
-    this.byUuid.clear();
-    this.byReference.clear();
-  }
-}
-
-/**
- * Base class for all element collections.
- */
-export abstract class BaseCollection<T extends { uuid: string }>
-  implements Iterable<T>
-{
-  protected items: T[] = [];
-  protected index: IndexRegistry<T> = new IndexRegistry();
-  protected modified: boolean = false;
-
-  get length(): number {
-    return this.items.length;
-  }
-
-  get isModified(): boolean {
-    return this.modified;
-  }
-
-  [Symbol.iterator](): Iterator<T> {
-    return this.items[Symbol.iterator]();
-  }
-
-  all(): T[] {
-    return [...this.items];
-  }
-
-  getByUuid(uuid: string): T | undefined {
-    return this.index.getByUuid(uuid);
-  }
-
-  find(predicate: (item: T) => boolean): T | undefined {
-    return this.items.find(predicate);
-  }
-
-  filter(predicate: (item: T) => boolean): T[] {
-    return this.items.filter(predicate);
-  }
-
-  map<U>(fn: (item: T) => U): U[] {
-    return this.items.map(fn);
-  }
-
-  forEach(fn: (item: T) => void): void {
-    this.items.forEach(fn);
-  }
-
-  some(predicate: (item: T) => boolean): boolean {
-    return this.items.some(predicate);
-  }
-
-  every(predicate: (item: T) => boolean): boolean {
-    return this.items.every(predicate);
-  }
-
-  protected addItem(item: T): T {
-    this.index.addByUuid(item.uuid, item);
-    this.items.push(item);
-    this.modified = true;
-    return item;
-  }
-
-  protected removeItem(uuid: string): boolean {
-    const idx = this.items.findIndex((item) => item.uuid === uuid);
-    if (idx === -1) return false;
-
-    this.items.splice(idx, 1);
-    this.index.removeByUuid(uuid);
-    this.modified = true;
-    return true;
-  }
-
-  clear(): void {
-    this.items = [];
-    this.index.clear();
-    this.modified = true;
-  }
-
-  resetModified(): void {
-    this.modified = false;
-  }
-}
-```
-
----
-
-## Component Collection (`src/core/collections/component.ts`)
-
-```typescript
-// src/core/collections/component.ts
-
-import { randomUUID } from "crypto";
-import { BaseCollection, IndexRegistry } from "./base";
-import { SchematicSymbol, Point, PropertyValue } from "../types";
-import { ElementNotFoundError } from "../exceptions";
-
-/**
- * Wrapper class for a component that provides a convenient API.
- */
-export class Component {
-  constructor(
-    private symbol: SchematicSymbol,
-    private collection: ComponentCollection
-  ) {}
-
-  get uuid(): string {
-    return this.symbol.uuid;
-  }
-  get libId(): string {
-    return this.symbol.libId;
-  }
-  get position(): Point {
-    return this.symbol.position;
-  }
-  get rotation(): number {
-    return this.symbol.rotation;
-  }
-  get mirror(): "x" | "y" | undefined {
-    return this.symbol.mirror;
-  }
-  get unit(): number {
-    return this.symbol.unit;
-  }
-  get inBom(): boolean {
-    return this.symbol.inBom;
-  }
-  get onBoard(): boolean {
-    return this.symbol.onBoard;
-  }
-
-  get reference(): string {
-    return this.symbol.properties.get("Reference")?.value || "";
-  }
-
-  set reference(value: string) {
-    const prop = this.symbol.properties.get("Reference");
-    if (prop) {
-      prop.value = value;
-    }
-    this.collection.updateReferenceIndex(this.symbol.uuid, value);
-  }
-
-  get value(): string {
-    return this.symbol.properties.get("Value")?.value || "";
-  }
-
-  set value(val: string) {
-    const prop = this.symbol.properties.get("Value");
-    if (prop) {
-      prop.value = val;
-    }
-  }
-
-  get footprint(): string | undefined {
-    return this.symbol.properties.get("Footprint")?.value;
-  }
-
-  set footprint(val: string | undefined) {
-    if (val) {
-      const prop = this.symbol.properties.get("Footprint");
-      if (prop) {
-        prop.value = val;
-      } else {
-        this.symbol.properties.set("Footprint", {
-          value: val,
-          position: { x: 0, y: 0 },
-          rotation: 0,
-        });
-      }
-    }
-  }
-
-  get properties(): Record<string, string> {
-    const result: Record<string, string> = {};
-    for (const [name, prop] of this.symbol.properties) {
-      result[name] = prop.value;
-    }
-    return result;
-  }
-
-  getProperty(name: string): string | undefined {
-    return this.symbol.properties.get(name)?.value;
-  }
-
-  setProperty(name: string, value: string): void {
-    const existing = this.symbol.properties.get(name);
-    if (existing) {
-      existing.value = value;
+  private generateWireCode(wire: Wire): string {
+    if (wire.points.length === 2) {
+      const start = wire.points[0];
+      const end = wire.points[1];
+      return `sch.wires.add(start=(${start.x}, ${start.y}), end=(${end.x}, ${end.y}))`;
     } else {
-      this.symbol.properties.set(name, {
-        value,
-        position: { x: 0, y: 0 },
-        rotation: 0,
-      });
+      const points = wire.points.map((p) => `(${p.x}, ${p.y})`).join(", ");
+      return `sch.wires.add(points=[${points}])`;
     }
   }
 
-  /** Get the raw symbol data for serialization */
-  toSymbol(): SchematicSymbol {
-    return this.symbol;
-  }
-}
-
-export interface AddComponentOptions {
-  libId: string;
-  reference: string;
-  value: string;
-  position: Point;
-  rotation?: number;
-  mirror?: "x" | "y";
-  unit?: number;
-  footprint?: string;
-  properties?: Record<string, string>;
-  inBom?: boolean;
-  onBoard?: boolean;
-}
-
-/**
- * Collection of components in a schematic.
- */
-export class ComponentCollection extends BaseCollection<Component> {
-  private referenceIndex: IndexRegistry<Component> = new IndexRegistry();
-
-  add(options: AddComponentOptions): Component {
-    const uuid = randomUUID();
-
-    const properties = new Map<string, PropertyValue>();
-    properties.set("Reference", {
-      value: options.reference,
-      position: { x: options.position.x + 1.27, y: options.position.y - 1.27 },
-      rotation: 0,
-    });
-    properties.set("Value", {
-      value: options.value,
-      position: { x: options.position.x + 1.27, y: options.position.y + 1.27 },
-      rotation: 0,
-    });
-
-    if (options.footprint) {
-      properties.set("Footprint", {
-        value: options.footprint,
-        position: { x: options.position.x, y: options.position.y + 2.54 },
-        rotation: 0,
-      });
-    }
-
-    if (options.properties) {
-      for (const [name, value] of Object.entries(options.properties)) {
-        if (!properties.has(name)) {
-          properties.set(name, {
-            value,
-            position: { x: 0, y: 0 },
-            rotation: 0,
-          });
-        }
-      }
-    }
-
-    const symbol: SchematicSymbol = {
-      uuid,
-      libId: options.libId,
-      position: options.position,
-      rotation: options.rotation || 0,
-      mirror: options.mirror,
-      unit: options.unit || 1,
-      inBom: options.inBom !== false,
-      onBoard: options.onBoard !== false,
-      excludeFromSim: false,
-      dnp: false,
-      properties,
-      pins: new Map(),
-    };
-
-    const component = new Component(symbol, this);
-    this.addItem(component);
-    this.referenceIndex.addByReference(options.reference, component);
-
-    return component;
+  private generateLabelCode(
+    label: Label | GlobalLabel | HierarchicalLabel
+  ): string {
+    const pos = label.position;
+    return `sch.labels.add(text="${this.escapeString(label.text)}", position=(${
+      pos.x
+    }, ${pos.y}))`;
   }
 
-  get(reference: string): Component | undefined {
-    return this.referenceIndex.getByReference(reference);
-  }
-
-  remove(reference: string): boolean {
-    const component = this.get(reference);
-    if (!component) return false;
-
-    this.referenceIndex.removeByReference(reference);
-    return this.removeItem(component.uuid);
-  }
-
-  findByLibId(libId: string): Component[] {
-    return this.filter((c) => c.libId === libId);
-  }
-
-  updateReferenceIndex(uuid: string, newReference: string): void {
-    const component = this.getByUuid(uuid);
-    if (component) {
-      // Remove old reference
-      for (const [ref, comp] of (this.referenceIndex as any).byReference) {
-        if (comp.uuid === uuid) {
-          this.referenceIndex.removeByReference(ref);
-          break;
-        }
-      }
-      // Add new reference
-      this.referenceIndex.addByReference(newReference, component);
-    }
-  }
-
-  /** Add a component from raw symbol data (used during parsing) */
-  addFromSymbol(symbol: SchematicSymbol): Component {
-    const component = new Component(symbol, this);
-    this.addItem(component);
-
-    const reference = symbol.properties.get("Reference")?.value;
-    if (reference) {
-      this.referenceIndex.addByReference(reference, component);
-    }
-
-    return component;
+  private escapeString(s: string): string {
+    return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
   }
 }
 ```
 
 ---
 
-## Wire Collection (`src/core/collections/wire.ts`)
+## Phased Success Criteria (Part 2)
 
-```typescript
-// src/core/collections/wire.ts
+### Phase 1: Symbol Library Cache
 
-import { randomUUID } from "crypto";
-import { BaseCollection } from "./base";
-import { Wire, Point, Stroke, StrokeType } from "../types";
+- [ ] Implement `SymbolLibraryCache` class
+- [ ] Implement automatic discovery of KiCAD library paths
+- [ ] Implement parsing for `.kicad_sym` files
+- [ ] Implement `getSymbol`, `searchSymbols`, `getLibrarySymbols`
+- [ ] Pass tests for finding common symbols (e.g., `Device:R`)
 
-export interface AddWireOptions {
-  start?: Point;
-  end?: Point;
-  points?: Point[];
-  stroke?: Stroke;
-}
+### Phase 2: Geometry Module
 
-export class WireCollection extends BaseCollection<Wire> {
-  add(options: AddWireOptions): Wire {
-    let points: Point[];
+- [ ] Implement `snapToGrid` function
+- [ ] Implement `createOrthogonalRouting` function
+- [ ] Implement `BoundingBox` utilities
+- [ ] Implement `SymbolBoundingBoxCalculator`
+- [ ] Implement `getComponentBoundingBox`
+- [ ] Pass geometry tests
 
-    if (options.points) {
-      points = options.points;
-    } else if (options.start && options.end) {
-      points = [options.start, options.end];
-    } else {
-      throw new Error("Must provide either points array or start/end");
-    }
+### Phase 3: Connectivity & Hierarchy
 
-    const wire: Wire = {
-      uuid: randomUUID(),
-      points,
-      stroke: options.stroke || {
-        width: 0,
-        type: StrokeType.DEFAULT,
-      },
-    };
+- [ ] Implement connectivity analysis in `src/connectivity/analyzer.ts`
+- [ ] Implement `checkPinConnection` function
+- [ ] Implement `HierarchyManager` class
+- [ ] Implement `buildHierarchyTree` and `validateSheetPins`
+- [ ] Pass connectivity and hierarchy tests
 
-    return this.addItem(wire);
-  }
+### Phase 4: Validation/ERC Module
 
-  remove(uuid: string): boolean {
-    return this.removeItem(uuid);
-  }
+- [ ] Implement `ERCViolation`, `ERCResult`, `ERCConfig` types
+- [ ] Implement `ElectricalRulesChecker` class
+- [ ] Implement duplicate reference check
+- [ ] Implement off-grid check
+- [ ] Pass ERC tests
 
-  findAtPoint(point: Point, tolerance: number = 0.01): Wire[] {
-    return this.filter((wire) =>
-      wire.points.some(
-        (p) =>
-          Math.abs(p.x - point.x) < tolerance &&
-          Math.abs(p.y - point.y) < tolerance
-      )
-    );
-  }
-}
-```
+### Phase 5: BOM, Discovery & Exporters
+
+- [ ] Implement `BOMPropertyAuditor` class
+- [ ] Implement `ComponentSearchIndex` with SQLite (optional, can be deferred)
+- [ ] Implement `PythonCodeGenerator` class
+- [ ] Pass BOM and exporter tests
 
 ---
 
-## Label Collection (`src/core/collections/label.ts`)
+## Mandatory Test Cases (Part 2)
+
+### Test 1: Symbol Library Cache
 
 ```typescript
-// src/core/collections/label.ts
+// test/integration/library.test.ts
+import { getSymbolCache } from "../../src/library/cache";
 
-import { randomUUID } from "crypto";
-import { BaseCollection } from "./base";
-import {
-  Label,
-  GlobalLabel,
-  HierarchicalLabel,
-  LabelType,
-  HierarchicalLabelShape,
-  Point,
-  TextEffects,
-  PropertyValue,
-} from "../types";
+describe("Symbol Library Cache", () => {
+  it("should find and parse the Device:R symbol", () => {
+    const cache = getSymbolCache();
+    const symbol = cache.getSymbol("Device:R");
 
-type AnyLabel = Label | GlobalLabel | HierarchicalLabel;
-
-export interface AddLabelOptions {
-  text: string;
-  position: Point;
-  rotation?: number;
-  type?: LabelType;
-  shape?: HierarchicalLabelShape;
-  effects?: TextEffects;
-}
-
-export class LabelCollection extends BaseCollection<AnyLabel> {
-  add(options: AddLabelOptions): AnyLabel {
-    const uuid = randomUUID();
-    const type = options.type || LabelType.LOCAL;
-
-    if (type === LabelType.GLOBAL) {
-      const label: GlobalLabel = {
-        uuid,
-        text: options.text,
-        position: options.position,
-        rotation: options.rotation || 0,
-        effects: options.effects,
-        shape: options.shape || HierarchicalLabelShape.BIDIRECTIONAL,
-        properties: new Map(),
-      };
-      return this.addItem(label);
-    }
-
-    if (type === LabelType.HIERARCHICAL) {
-      const label: HierarchicalLabel = {
-        uuid,
-        text: options.text,
-        position: options.position,
-        rotation: options.rotation || 0,
-        effects: options.effects,
-        shape: options.shape || HierarchicalLabelShape.BIDIRECTIONAL,
-      };
-      return this.addItem(label);
-    }
-
-    const label: Label = {
-      uuid,
-      text: options.text,
-      position: options.position,
-      rotation: options.rotation || 0,
-      effects: options.effects,
-    };
-    return this.addItem(label);
-  }
-
-  remove(uuid: string): boolean {
-    return this.removeItem(uuid);
-  }
-
-  getLocalLabels(): Label[] {
-    return this.filter((l) => !("shape" in l)) as Label[];
-  }
-
-  getGlobalLabels(): GlobalLabel[] {
-    return this.filter(
-      (l) => "shape" in l && "properties" in l
-    ) as GlobalLabel[];
-  }
-
-  getHierarchicalLabels(): HierarchicalLabel[] {
-    return this.filter(
-      (l) => "shape" in l && !("properties" in l)
-    ) as HierarchicalLabel[];
-  }
-
-  findByText(text: string): AnyLabel[] {
-    return this.filter((l) => l.text === text);
-  }
-}
-```
-
----
-
-## Junction Collection (`src/core/collections/junction.ts`)
-
-```typescript
-// src/core/collections/junction.ts
-
-import { randomUUID } from "crypto";
-import { BaseCollection } from "./base";
-import { Junction, Point } from "../types";
-
-export interface AddJunctionOptions {
-  position: Point;
-  diameter?: number;
-  color?: [number, number, number, number];
-}
-
-export class JunctionCollection extends BaseCollection<Junction> {
-  add(options: AddJunctionOptions): Junction {
-    const junction: Junction = {
-      uuid: randomUUID(),
-      position: options.position,
-      diameter: options.diameter || 0,
-      color: options.color || [0, 0, 0, 0],
-    };
-    return this.addItem(junction);
-  }
-
-  remove(uuid: string): boolean {
-    return this.removeItem(uuid);
-  }
-
-  findAtPoint(point: Point, tolerance: number = 0.01): Junction | undefined {
-    return this.find(
-      (j) =>
-        Math.abs(j.position.x - point.x) < tolerance &&
-        Math.abs(j.position.y - point.y) < tolerance
-    );
-  }
-}
-```
-
----
-
-## Phased Success Criteria (Part 1)
-
-### Phase 1: Project Setup
-
-- [x] Initialize npm project with TypeScript (`npm init -y && npm install typescript ts-jest jest @types/jest @types/node --save-dev`)
-- [x] Configure `tsconfig.json` for ES modules with strict mode
-- [x] Configure `jest.config.js` for ts-jest
-- [x] Create directory structure as shown above
-- [x] Copy reference test fixtures from Python project's `tests/reference_kicad_projects/`
-
-### Phase 2: Core Types & Exceptions
-
-- [x] Implement all interfaces in `src/core/types.ts` (copy from above)
-- [x] Implement all enums (PinType, WireType, LabelType, etc.)
-- [x] Implement all exception classes in `src/core/exceptions.ts`
-- [x] Implement configuration in `src/core/config.ts`
-
-### Phase 3: S-Expression Parser
-
-- [x] Implement `Symbol` class for S-expression atoms
-- [x] Implement `Tokenizer` class for lexing
-- [x] Implement `SExpressionParser` class
-- [x] Handle strings with escape sequences
-- [x] Handle numbers (integers, floats)
-- [x] Handle nested lists
-- [x] Pass unit tests for parsing
-
-### Phase 4: S-Expression Formatter
-
-- [x] Implement `ExactFormatter` class
-- [x] Handle inline vs block elements correctly
-- [x] Handle proper indentation with tabs
-- [x] Handle string quoting and escaping
-- [x] Handle number formatting
-- [x] Pass unit tests for formatting
-
-### Phase 5: Collections
-
-- [x] Implement `IndexRegistry` and `BaseCollection`
-- [x] Implement `ComponentCollection` with `Component` wrapper
-- [x] Implement `WireCollection`
-- [x] Implement `LabelCollection` (local, global, hierarchical)
-- [x] Implement `JunctionCollection`
-- [x] Implement `NoConnectCollection`
-- [x] Implement `BusCollection`, `BusEntryCollection`
-- [x] Implement `SheetCollection`
-- [x] Implement `TextCollection`, `TextBoxCollection`
-- [x] Implement `RectangleCollection`, `ImageCollection`
-
-### Phase 6: Schematic Class (Core)
-
-- [x] Implement basic `Schematic` class structure
-- [x] Implement `load`, `create`, `fromString` factory methods
-- [x] Implement `parse` method that delegates to element parsers
-- [x] Implement element parsers in `src/core/parsers/`
-- [x] Implement `toSexp` method for serialization
-- [x] Implement `format` method using `ExactFormatter`
-- [x] Implement `save` method
-
-### Phase 7: Round-Trip Integration
-
-- [x] All round-trip tests pass for `blank.kicad_sch`
-- [x] All round-trip tests pass for `single_resistor.kicad_sch`
-- [x] All round-trip tests pass for all rotated resistor variants
-- [x] Component add/modify operations work correctly
-- [x] Wire add operations work correctly
-- [x] Label add operations work correctly
-
----
-
-## Mandatory Test Cases (Part 1)
-
-### Test 1: S-Expression Parser
-
-```typescript
-// test/unit/parser.test.ts
-import { SExpressionParser, Symbol } from "../../src/core/parser";
-
-describe("SExpressionParser", () => {
-  const parser = new SExpressionParser();
-
-  it("should parse a simple list", () => {
-    const result = parser.parse("(hello world)");
-    expect(result).toEqual([new Symbol("hello"), new Symbol("world")]);
+    expect(symbol).toBeDefined();
+    expect(symbol?.name).toBe("R");
+    expect(symbol?.referencePrefix).toBe("R");
   });
 
-  it("should parse nested lists", () => {
-    const result = parser.parse("(a (b c) d)");
-    expect(result).toEqual([
-      new Symbol("a"),
-      [new Symbol("b"), new Symbol("c")],
-      new Symbol("d"),
-    ]);
-  });
+  it("should search for resistors", () => {
+    const cache = getSymbolCache();
+    const results = cache.searchSymbols("resistor", 10);
 
-  it("should parse numbers", () => {
-    const result = parser.parse("(num 42 3.14 -5)");
-    expect(result).toEqual([new Symbol("num"), 42, 3.14, -5]);
-  });
-
-  it("should parse strings with escapes", () => {
-    const result = parser.parse('(text "hello\\"world")');
-    expect(result).toEqual([new Symbol("text"), 'hello"world']);
-  });
-
-  it("should parse booleans", () => {
-    const result = parser.parse("(flags yes no)");
-    expect(result).toEqual([new Symbol("flags"), true, false]);
+    expect(results.length).toBeGreaterThan(0);
   });
 });
 ```
 
-### Test 2: Round-Trip Blank Schematic
+### Test 2: Routing
 
 ```typescript
-// test/integration/round-trip.test.ts
-import { readFileSync } from "fs";
+// test/integration/geometry.test.ts
+import {
+  createOrthogonalRouting,
+  CornerDirection,
+} from "../../src/geometry/routing";
+
+describe("Routing", () => {
+  it("should create direct route for aligned points", () => {
+    const result = createOrthogonalRouting(
+      { x: 100, y: 100 },
+      { x: 150, y: 100 }
+    );
+
+    expect(result.isDirectRoute).toBe(true);
+    expect(result.segments).toHaveLength(1);
+  });
+
+  it("should create L-shaped route for non-aligned points", () => {
+    const result = createOrthogonalRouting(
+      { x: 100, y: 100 },
+      { x: 150, y: 150 }
+    );
+
+    expect(result.isDirectRoute).toBe(false);
+    expect(result.segments).toHaveLength(2);
+    expect(result.corner).toBeDefined();
+  });
+});
+```
+
+### Test 3: Bounding Box
+
+```typescript
+import {
+  getComponentBoundingBox,
+  getBoundingBoxWidth,
+} from "../../src/geometry/symbol-bbox";
+import { getSymbolCache } from "../../src/library/cache";
 import { Schematic } from "../../src";
 
-describe("Round-Trip Tests", () => {
-  it("should round-trip blank schematic exactly", () => {
-    const original = readFileSync(
-      "test/fixtures/blank/blank.kicad_sch",
-      "utf-8"
+describe("Bounding Box", () => {
+  it("should calculate component bounding box", () => {
+    const sch = Schematic.load(
+      "test/fixtures/single_resistor/single_resistor.kicad_sch"
     );
-    const sch = Schematic.fromString(original);
-    const output = sch.format();
-    expect(output).toEqual(original.trim());
+    const cache = getSymbolCache();
+
+    const component = sch.components.get("R1");
+    expect(component).toBeDefined();
+
+    const bbox = getComponentBoundingBox(component!, cache);
+    expect(bbox).toBeDefined();
+    expect(getBoundingBoxWidth(bbox!)).toBeGreaterThan(0);
   });
 });
 ```
 
-### Test 3: Round-Trip Single Resistor
+### Test 4: ERC
 
 ```typescript
-it("should round-trip single resistor schematic", () => {
-  const original = readFileSync(
-    "test/fixtures/single_resistor/single_resistor.kicad_sch",
-    "utf-8"
-  );
-  const sch = Schematic.fromString(original);
-  const output = sch.format();
-  expect(output).toEqual(original.trim());
-});
-```
+// test/integration/erc.test.ts
+import { ElectricalRulesChecker, ERCSeverity } from "../../src/validation/erc";
+import { Schematic } from "../../src";
 
-### Test 4: Round-Trip All Rotations
-
-```typescript
-const rotations = ["0deg", "90deg", "180deg", "270deg"];
-rotations.forEach((rot) => {
-  it(`should round-trip rotated_resistor_${rot}`, () => {
-    const original = readFileSync(
-      `test/fixtures/rotated_resistor_${rot}/rotated_resistor_${rot}.kicad_sch`,
-      "utf-8"
+describe("ERC", () => {
+  it("should pass for a valid schematic", () => {
+    const sch = Schematic.load(
+      "test/fixtures/single_resistor/single_resistor.kicad_sch"
     );
-    const sch = Schematic.fromString(original);
-    const output = sch.format();
-    expect(output).toEqual(original.trim());
+    const checker = new ElectricalRulesChecker(sch);
+    const result = checker.check();
+
+    expect(result.errorCount).toBe(0);
   });
 });
 ```
 
-### Test 5: Add Component
+### Test 5: BOM Audit
 
 ```typescript
-describe("Component Operations", () => {
-  it("should add a component", () => {
+// test/integration/bom.test.ts
+import { BOMPropertyAuditor } from "../../src/bom/auditor";
+
+describe("BOM Audit", () => {
+  it("should find missing properties", () => {
+    const auditor = new BOMPropertyAuditor();
+    const issues = auditor.auditSchematic(
+      "test/fixtures/single_resistor/single_resistor.kicad_sch",
+      ["PartNumber", "Manufacturer"]
+    );
+
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0].missingProperties).toContain("PartNumber");
+  });
+});
+```
+
+### Test 6: Python Export
+
+```typescript
+// test/integration/exporter.test.ts
+import { PythonCodeGenerator } from "../../src/exporters/python-generator";
+import { Schematic } from "../../src";
+
+describe("Python Export", () => {
+  it("should generate valid Python code", () => {
     const sch = Schematic.create("Test");
-
-    const component = sch.components.add({
+    sch.components.add({
       libId: "Device:R",
       reference: "R1",
       value: "10k",
-      position: { x: 100.33, y: 101.6 },
+      position: { x: 100, y: 100 },
     });
 
-    expect(component.reference).toBe("R1");
-    expect(component.value).toBe("10k");
-    expect(component.libId).toBe("Device:R");
-  });
+    const generator = new PythonCodeGenerator();
+    const code = generator.generate(sch);
 
-  it("should modify component properties", () => {
-    const sch = Schematic.create("Test");
-
-    const component = sch.components.add({
-      libId: "Device:R",
-      reference: "R1",
-      value: "10k",
-      position: { x: 100.33, y: 101.6 },
-    });
-
-    component.value = "20k";
-    component.setProperty("Tolerance", "1%");
-
-    expect(component.value).toBe("20k");
-    expect(component.getProperty("Tolerance")).toBe("1%");
+    expect(code).toContain("import kicad_sch_api as ksa");
+    expect(code).toContain("sch.components.add");
+    expect(code).toContain("Device:R");
   });
 });
 ```
-
-### Test 6: Add Wire
-
-```typescript
-describe("Wire Operations", () => {
-  it("should add a wire", () => {
-    const sch = Schematic.create("Test");
-
-    const wire = sch.wires.add({
-      start: { x: 100.33, y: 101.6 },
-      end: { x: 106.68, y: 101.6 },
-    });
-
-    expect(wire.points).toHaveLength(2);
-    expect(wire.points[0]).toEqual({ x: 100.33, y: 101.6 });
-  });
-});
-```
-
-### Test 7: Add Label
-
-```typescript
-describe("Label Operations", () => {
-  it("should add a local label", () => {
-    const sch = Schematic.create("Test");
-
-    const label = sch.labels.add({
-      text: "VCC",
-      position: { x: 100.33, y: 101.6 },
-    });
-
-    expect(label.text).toBe("VCC");
-  });
-});
-```
-
-### Test 8: Grid Alignment
-
-```typescript
-describe("Grid Alignment", () => {
-  it("should snap to grid", () => {
-    const { snapToGrid } = require("../../src/core/config");
-
-    const point = snapToGrid({ x: 100.5, y: 101.3 });
-    // 100.5 / 1.27 = 79.13 -> round to 79 -> 79 * 1.27 = 100.33
-    // 101.3 / 1.27 = 79.76 -> round to 80 -> 80 * 1.27 = 101.6
-    expect(point.x).toBeCloseTo(100.33, 2);
-    expect(point.y).toBeCloseTo(101.6, 2);
-  });
-});
-```
-
----
-
-## ⚠️ Traps to Avoid (Part 1)
-
-1. **S-Expression Formatting:** KiCAD is VERY particular. Use tabs for indentation, not spaces. Preserve trailing zeros on floats where needed.
-
-2. **String Escaping:** Strings may contain `\n`, `\"`, `\\`. Handle these correctly in both parsing and formatting.
-
-3. **Element Ordering:** The order of elements in the output must match the original. Use the `FormatSyncManager` pattern from the Python code if needed.
-
-4. **UUID Generation:** Use `crypto.randomUUID()` for generating UUIDs.
-
-5. **Number Formatting:** Integers should not have decimal points. Floats should not have unnecessary trailing zeros.
 
 ---
 
 ## Agent Instructions
 
-1. **Focus on Fidelity:** The only goal of Part 1 is perfect parsing and formatting. Do not implement analysis features.
-2. **Run Tests Constantly:** The round-trip tests are your ground truth.
-3. **Refer to Python Code:** Use `parser.py`, `formatter.py`, and `schematic.py` as your guide.
-4. **Signal Completion:** When all tests pass, output:
+1. **Build on Part 1:** Ensure the Core Engine is complete and all its tests pass.
+2. **Test Against Real Libraries:** If KiCAD is installed, the library cache tests should find real symbols.
+3. **Signal Completion:** When all tests pass, output:
    ```
-   ✅ PART 1 COMPLETE: Core Engine ready. All round-trip tests passing.
+   ✅ PART 2 COMPLETE: Library & Analysis features implemented. All analysis tests passing.
    ```
