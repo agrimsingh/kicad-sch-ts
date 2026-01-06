@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-01-06
+
+### Added
+- `Schematic.setCache()` / `getCache()` methods for connecting to symbol library cache.
+- `Schematic.embedSymbol()` / `getEmbeddedSymbol()` methods for manual symbol embedding.
+- `SymbolLibraryCache.getSymbolSexp()` method for retrieving raw S-expressions.
+- Tests for lib_symbols population in `test/integration/lib-symbols.test.ts`.
+
+### Fixed
+- **lib_symbols now populated when creating schematics programmatically.** Previously, `buildLibSymbols()` returned an empty container, causing KiCad to show `??` placeholders and kicanvas to crash. Now automatically looks up symbol definitions from the library cache.
+
+## [1.0.2] - 2026-01-05
+
 ### Added
 - Logger utilities with configurable levels and error formatting.
 - Connectivity fixtures covering crossings, T-junctions, and overlaps.

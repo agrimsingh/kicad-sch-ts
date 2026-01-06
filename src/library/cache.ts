@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join, basename, dirname } from "path";
 import { homedir } from "os";
-import { SExpressionParser, Symbol as SSymbol } from "../core/parser";
+import { SExpressionParser, Symbol as SSymbol, SExp } from "../core/parser";
 import {
   SymbolDefinition,
   SymbolUnit,
@@ -24,6 +24,7 @@ export interface LibraryStats {
 export class SymbolLibraryCache {
   private symbolCache: Map<string, SymbolDefinition> = new Map();
   private resolvedSymbolCache: Map<string, SymbolDefinition> = new Map();
+  private rawSymbolSexp: Map<string, SExp[]> = new Map();
   private libraryIndex: Map<string, string[]> = new Map();
   private libraryPaths: string[] = [];
   private libStats: Map<string, LibraryStats> = new Map();
@@ -212,6 +213,27 @@ export class SymbolLibraryCache {
   }
 
   /**
+   * Get raw S-expression for a symbol by lib_id (e.g., "Device:R").
+   * Used for embedding symbol definitions in schematic lib_symbols section.
+   */
+  getSymbolSexp(libId: string): SExp[] | undefined {
+    if (this.rawSymbolSexp.has(libId)) {
+      return this.rawSymbolSexp.get(libId);
+    }
+
+    const [libraryName, symbolName] = libId.split(":");
+    if (!libraryName || !symbolName) {
+      return undefined;
+    }
+
+    if (!this.libraryIndex.has(libraryName)) {
+      this.loadLibrary(libraryName);
+    }
+
+    return this.rawSymbolSexp.get(libId);
+  }
+
+  /**
    * Load a library file and cache all its symbols.
    */
   private loadLibrary(libraryName: string): void {
@@ -279,6 +301,15 @@ export class SymbolLibraryCache {
         item[0] instanceof SSymbol &&
         item[0].name === "symbol"
       ) {
+        const symbolName = item[1] as string;
+        const libId = `${libraryName}:${symbolName}`;
+
+        // Store raw S-expression with lib_id as the symbol name
+        // Clone the array and update the name to include library prefix
+        const rawSexp = [...item] as SExp[];
+        rawSexp[1] = libId;
+        this.rawSymbolSexp.set(libId, rawSexp);
+
         const symbol = this.parseSymbolDefinition(item, libraryName);
         symbols.push(symbol);
       }
@@ -780,6 +811,7 @@ export class SymbolLibraryCache {
   clearCache(): void {
     this.symbolCache.clear();
     this.resolvedSymbolCache.clear();
+    this.rawSymbolSexp.clear();
     this.libraryIndex.clear();
     this.libStats.clear();
   }

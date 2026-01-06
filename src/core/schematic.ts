@@ -56,6 +56,7 @@ import {
   BezierCollection,
   ImageCollection,
 } from "./collections";
+import { SymbolLibraryCache } from "../library/cache";
 
 /**
  * Main Schematic class that handles loading, parsing, and saving KiCAD schematic files.
@@ -107,6 +108,12 @@ export class Schematic {
   // Track if this schematic was created fresh (vs loaded from file)
   private _isCreated: boolean = false;
   private _isModified: boolean = false;
+
+  // Symbol library cache for looking up symbol definitions
+  private _cache: SymbolLibraryCache | null = null;
+  
+  // Manually embedded symbol S-expressions (takes precedence over cache lookup)
+  private _embeddedSymbolSexps: Map<string, SExp[]> = new Map();
 
   private constructor() {
     this._sexp = [];
@@ -1245,9 +1252,27 @@ export class Schematic {
   }
 
   private buildLibSymbols(): SExp[] {
-    // For now, return empty lib_symbols - KiCAD will fill it in when opened
-    // In a full implementation, we'd lookup symbol definitions from the cache
-    return [new Symbol("lib_symbols")];
+    const libSymbols: SExp[] = [new Symbol("lib_symbols")];
+
+    // Collect unique lib_ids from all components
+    const usedLibIds = new Set<string>();
+    for (const component of this.components) {
+      usedLibIds.add(component.libId);
+    }
+
+    // Look up each symbol definition and add to lib_symbols
+    for (const libId of usedLibIds) {
+      // Manual embedding takes precedence over cache lookup
+      let symbolSexp = this._embeddedSymbolSexps.get(libId);
+      if (!symbolSexp && this._cache) {
+        symbolSexp = this._cache.getSymbolSexp(libId);
+      }
+      if (symbolSexp) {
+        libSymbols.push(symbolSexp);
+      }
+    }
+
+    return libSymbols;
   }
 
   private buildWire(wire: Wire): SExp[] {
@@ -1899,6 +1924,39 @@ export class Schematic {
     }
     this.titleBlock.title = value;
     this._isModified = true;
+  }
+
+  /**
+   * Set the symbol library cache for automatic symbol lookup.
+   * When set, buildLibSymbols() will look up symbol definitions from this cache.
+   */
+  setCache(cache: SymbolLibraryCache): void {
+    this._cache = cache;
+  }
+
+  /**
+   * Get the currently configured symbol library cache.
+   */
+  getCache(): SymbolLibraryCache | null {
+    return this._cache;
+  }
+
+  /**
+   * Manually embed a symbol definition S-expression.
+   * This takes precedence over cache lookup for the given lib_id.
+   * @param libId The library ID (e.g., "Device:R")
+   * @param symbolSexp The raw S-expression for the symbol definition
+   */
+  embedSymbol(libId: string, symbolSexp: SExp[]): void {
+    this._embeddedSymbolSexps.set(libId, symbolSexp);
+    this._isModified = true;
+  }
+
+  /**
+   * Get an embedded symbol S-expression by lib_id.
+   */
+  getEmbeddedSymbol(libId: string): SExp[] | undefined {
+    return this._embeddedSymbolSexps.get(libId);
   }
 
   /**
